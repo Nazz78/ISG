@@ -31,13 +31,24 @@ module IterativeSG
 			attr_reader :rules_layer, :solution_layer, :initial_shape
 			attr_reader :rules, :boundary_component
 		end
-		
+
 		########################################################################
 		# Initialize ShapeGrammar Controller and set up all needed variables to
-		# work with it.
+		# work with it. Controller initialization also sets up layers, ...
+		# 
 		# Prior to initializing Controller user has to select boundary object
 		# which is represented by a SketchUp Component entity. For now this
 		# works only in horizontal plane (2D).
+		# 
+		# Accepts:
+		# Bounary object which is of class Sketchup::ComponentInstance.
+		# 
+		# Notes:
+		# Component that represents shape boundary should only contain one face
+		# which can be convex.
+		# 
+		# Returns:
+		# True if initialization is sucesfull, False otherwise.
 		########################################################################
 		def Controller::initialize(boundary_component = Sketchup.active_model.selection[0])
 			unless boundary_component.is_a? Sketchup::ComponentInstance
@@ -56,7 +67,7 @@ module IterativeSG
 			# reset initial shape
 			@initial_shape = nil
 			
-			# Setup boundary
+			# Setup boundary and Geometry module to work with it
 			@boundary_component = boundary_component
 			Geometry.initialize(boundary_component)
 			return true

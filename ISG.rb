@@ -11,7 +11,7 @@ require 'sketchup'
 require 'extensions'
 
 su_sg_extension = SketchupExtension.new "Controlled Shape Grammars",
-  File.join('IterativeShapeGrammars', 'ISG_controller.rb')
+  File.join('ISG', 'ISG_controller.rb')
 
 su_sg_extension.creator = 'Jernej Vidmar'
 su_sg_extension.copyright = 'Jernej Vidmar, December 2013'

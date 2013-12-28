@@ -22,8 +22,23 @@ module IterativeSG
 			attr_accessor :boundary_points
 		end
 		
+		########################################################################
+		# Initialize Geometry module and fill it up with needed information for
+		# faster access to often used data.
+		# 
+		# Accepts:
+		# Bounary object which is of class Sketchup::ComponentInstance.
+		# 
+		# Notes:
+		# Component that represents shape boundary should only contain one face
+		# which can be convex.
+		# 
+		# Returns:
+		# nil
+		########################################################################
 		def Geometry::initialize(boundary_component)
 			@boundary_points = component_outer_loop(boundary_component)
+			return nil
 		end
 		
 		########################################################################
@@ -31,8 +46,12 @@ module IterativeSG
 		# is inside boundary even if it touches some of the edges. This method
 		# works for convex hull boundaries.
 		# 
-		# Returns true if face is completely inside the specified boundary,
-		# false otherwise.
+		# Accepts:
+		# Sketchup::Face which is being checked.
+		# 
+		# Returns:
+		# True if face is completely inside the specified boundary,
+		# False otherwise.
 		########################################################################
 		def Geometry::inside_boundary?(face)
 			# collect all vertices positions
@@ -50,6 +69,57 @@ module IterativeSG
 		# face = Sketchup.active_model.selection[0]
 		# ShapeGrammars::Geometry::inside_boundary?(face)
 
+		########################################################################
+		# Check if two groups match. That is if the face they contain are exact
+		# same shape and at exact same place.
+		# 
+		# Accepts:
+		# Accepts two groups, which are being compared.
+		# 
+		# Notes:
+		# At the moment both groups should contain only one face with same
+		# amount of vertices.
+		# 
+		# Returns:
+		# True if two groups are identical, False otherwise.
+		########################################################################
+		def Geometry::identical?(group_1, group_2)
+			# get local transformation of shape if their ID is the same
+			# return true if group_1.transformation.to_a == group_2.transformation.to_a
+			
+			# match points
+			group_1_vertices = group_1.entities.to_a.select { |ent|
+				ent.class == Sketchup::Face }[0].vertices
+			group_1_transformation = group_1.transformation
+			group_2_vertices = group_2.entities.to_a.select { |ent|
+				ent.class == Sketchup::Face }[0].vertices
+			group_2_transformation = group_2.transformation
+			
+			group_2_vertices_length = group_2_vertices.length
+			group_1_vertices.each do |vertex_1|
+				pos_1 = vertex_1.position.transform! group_1_transformation
+				# find vertex in second group that matches this vertex position
+				group_2_vertices.each do |vertex_2|
+					pos_2 = vertex_2.position.transform! group_2_transformation
+					if  pos_2 == pos_1
+						group_2_vertices.delete vertex_2
+						# puts 'vertex found'
+						break
+					end
+				end
+				
+				# if vertex was not found, we can skip rest of the routine.
+				if group_2_vertices_length == group_2_vertices.length
+					return false 
+				else
+					group_2_vertices_length -= 1
+				end
+			end
+			
+			# if all vertices were deleted, polygons are matching
+			return group_2_vertices.empty?
+		end		
+
 		########################################################################	
 		# PRIVATE METHODS BELOW!
 		########################################################################		
@@ -57,6 +127,9 @@ module IterativeSG
 		
 		########################################################################
 		# Calculate 2D (x,y) position of boundary vertices in global space.
+		# 
+		# Accepts:
+		# Bounary object which is of class Sketchup::ComponentInstance.
 		# 
 		# Notes:
 		# Component that represents shape boundary should only contain one face
@@ -94,5 +167,8 @@ module IterativeSG
 			# and return it
 			return points
 		end
+		
+
+
 	end
 end
