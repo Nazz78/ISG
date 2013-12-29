@@ -31,7 +31,7 @@ module IterativeSG
 		class << self
 			attr_reader :rules_layer, :solution_layer, :initial_shape
 			attr_reader :rules, :boundary_component
-			attr_reader :shapes, :shape_IDs, :shape_UIDs
+			attr_reader :shapes, :shape_IDs, :UIDs
 		end
 
 		########################################################################
@@ -67,15 +67,16 @@ module IterativeSG
 			@rules_layer = layers.add "SG Rules Layer"
 			@solution_layer = layers.add "SG Solution Layer"
 			# create dictionary to store values that need to be saved...
-			@dict = model.attribute_dictionary 'IterativeSG', true
+			@dict_shapes = model.attribute_dictionary 'ISG_shapes', true
+			@dict_rules = model.attribute_dictionary 'ISG_rules', true
 			# populate shape_IDs
 			@shape_IDs = [1]
 			# create shape_IDs
-			@shape_UIDs = Array.new
+			@UIDs = Array.new
 			# Initialize existing shapes
 			@shapes = Array.new
-			initialize_existing_shapes
-		
+			initialize_existing_shapes			
+			
 			# Setup boundary and Geometry module to work with it
 			@boundary_component = boundary_component
 			Geometry.initialize(boundary_component)
@@ -87,27 +88,55 @@ module IterativeSG
 		end
 		# IterativeSG::Controller::initialize
 		
-		
-		def Controller::create_rule(rule_ID, orig, shape, orig_new, shape_new)
-			# get origin of base shape
-			pos_orig = orig.bounds.center
-			# get base shape
-			pos_shape = shape.bounds.min
-			# get origin of shape rule application
-			pos_orig_new = orig_new.bounds.center
-			# get shape rule application
-			new_shape_group = Sketchup.active_model.entities.add_group shape_new
-			new_shape_group.name = rule_ID
-			pos_shape_new = new_shape_group.bounds.min
+		########################################################################
+		# Create ISG rule. This method serves only to remember which entites
+		# define Shape Rule.
+		# 
+		# Accepts:
+		# rule_ID - rule identifier
+		# origin - marker to set origin of existing shape
+		# shape - existing shape (Group with Face)
+		# origin_new -  marker to set origin of new shape.
+		# shape_new - array of shapes (Groups with Face) that represent new shape
+		# 
+		# Notes:
+		# shape_new can contain several groups.
+		# 
+		# 
+		# Returns:
+		# True when rule definition is sucessful.
+		########################################################################	
+		def Controller::define_rule(rule_ID, origin, shape, origin_new, shape_new)
+			# setup origin of base shape
+			origin_uid = set_UID(origin, generate_UID)
+			@UIDs << origin_uid
 			
-			# add all to @rules_layer
+			# setup base shape
+			shape_uid = shape.UID
+			# shape.set_attribute rule_ID, 'shape', shape_uid
 			
+			# setup origin of shape rule application
+			origin_new_uid = set_UID(origin_new, generate_UID)
+			@UIDs << origin_new_uid
+				
+			# create shape rule application
+			shape_new_uid = Array.new
+			shape_new.each do |shape|
+				shp_uid = shape.UID
+				shape.set_attribute rule_ID, 'shape_new', shp_uid
+				shape_new_uid << shp_uid
+			end
 			
-			@rules[rule_ID] = [orig, shape, orig_new, shape_new]
-			@dict.set_attribute 'IterativeSG', rule_ID, @rules[rule_ID]
+			# add all objects to @rules_layer
+			
+			# store it in ruby hash
+			@rules[rule_ID] = [origin, shape, origin_new, shape_new]
+			# and we also need to remember it so we can load it at some later time...
+			@dict_rules[rule_ID] = [origin_uid, shape_uid, origin_new_uid, shape_new_uid]
 			return true
 		end
-		# IterativeSG::Controller::create_rule(rule_1, orig, shape, orig_new, shape_new)
+		# IterativeSG::Controller::define_rule(rule_ID, origin, shape, origin_new, shape_new)
+
 
 		########################################################################
 		# Extend Sketchup::Group with ISG methods. Also initialize it, so it
@@ -136,9 +165,8 @@ module IterativeSG
 			shp_id, shp_uid = group.initialize_ISG_shape(@shape_IDs.last + 1, uid)
 			@shape_IDs << shp_id
 			@shape_IDs.sort!.uniq!
-			@shape_UIDs << shp_uid
-			@dict.set_attribute 'IterativeSG', 'shape_IDs', @shape_IDs
-			puts @shape_IDs.inspect
+			@UIDs << shp_uid
+			@dict_shapes['shape_IDs'] = @shape_IDs
 			
 			# and add it to list of shapes
 			@shapes << group
@@ -188,10 +216,41 @@ module IterativeSG
 		def Controller::generate_UID
 			uid = rand(2**256).to_s(36).ljust(8,'a')[0..12]
 			# make sure no two UIDs are the same by using recursive function.
-			if @shape_UIDs.include? uid
+			if @UIDs.include? uid
 				uid = generate_UID
 			end
+			# add it to list of all UIDs
 			return uid
+		end
+		
+		########################################################################
+		# Set unique ID to speficied object's dictionary.
+		# 
+		# Accepts:
+		# Sketchup entitiy, to which UID is applied.
+		# 
+		# Notes:
+		# If UID is not present it will be populated with received one. If it is
+		# present, but it matches one which is present within UIDs list, it will
+		# be replaced with a new one. If it is prsent but not contained within
+		# UIDs list, it will just update UIDs list.
+		# 
+		# Returns:
+		# Uniqe IDentifier.
+		########################################################################
+		def Controller::set_UID(entity, uid)
+			current_uid = entity.get_attribute 'IterativeSG', 'UID'
+			if current_uid == nil
+				entity.set_attribute 'IterativeSG', 'UID', uid
+				return uid
+			else
+				if @UIDs.include? current_uid
+					entity.set_attribute 'IterativeSG', 'UID', uid
+					return uid
+				else
+					return current_uid
+				end
+			end
 		end
 	end
 end

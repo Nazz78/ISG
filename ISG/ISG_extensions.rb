@@ -12,14 +12,14 @@ module IterativeSG
 	# Extension of Sketchup::Group objects.
 	############################################################################
 	module Group
-		attr_reader :shape_ID, :shape_UID
+		attr_reader :shape_ID, :UID
 		########################################################################
 		# Initialize Sketchup::Group object so that ISG can work with it. For
 		# now we add uniqe ID so shapes can be easiliy identified.
 		# 
 		# Accepts:
 		# shape_ID which is identifier among similar shapes.
-		# shape_UID which is uniqe identifier, so we can receive specific instance
+		# UID which is uniqe identifier, so we can receive specific instance
 		# of the shape.
 		# 
 		# Notes:
@@ -43,20 +43,20 @@ module IterativeSG
 			
 			# UIDs are a bit different - when shape is copied, they should
 			# not remain the same. So make sure to change them even if they exist.
-			if (@dict.get_attribute 'IterativeSG', 'shape_UID') == nil
-				@shape_UID = shape_uid
-				@dict.set_attribute 'IterativeSG', 'shape_UID', shape_uid
+			current_uid = @dict.get_attribute 'IterativeSG', 'UID'
+			if current_uid == nil
+				@UID = shape_uid
+				@dict.set_attribute 'IterativeSG', 'UID', shape_uid
 			else
-				current_uid = @dict.get_attribute 'IterativeSG', 'shape_UID'
-				if Controller::shape_UIDs.include? current_uid
-					@shape_UID = shape_uid
-					@dict.set_attribute 'IterativeSG', 'shape_UID', shape_uid
+				if Controller.UIDs.include? current_uid
+					@UID = shape_uid
+					@dict.set_attribute 'IterativeSG', 'UID', shape_uid
 				else
-					@shape_UID = current_uid
+					@UID = current_uid
 				end
 			end
 
-			return @shape_ID, @shape_UID
+			return @shape_ID, @UID
 		end
 	end
 end
