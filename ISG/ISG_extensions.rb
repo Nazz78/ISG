@@ -59,4 +59,29 @@ module IterativeSG
 			return @shape_ID, @UID
 		end
 	end
+	
+	module ComponentInstance
+		attr_reader :UID
+		def initialize_ISG_marker(uid)
+			# create dictionary
+			@dict = self.attribute_dictionary 'IterativeSG', true
+			
+			# UIDs are a bit different - when shape is copied, they should
+			# not remain the same. So make sure to change them even if they exist.
+			current_uid = @dict.get_attribute 'IterativeSG', 'UID'
+			if current_uid == nil
+				@UID = uid
+				@dict.set_attribute 'IterativeSG', 'UID', uid
+			else
+				if Controller.UIDs.include? current_uid
+					@UID = uid
+					@dict.set_attribute 'IterativeSG', 'UID', uid
+				else
+					@UID = current_uid
+				end
+			end
+
+			return @UID
+		end
+	end
 end

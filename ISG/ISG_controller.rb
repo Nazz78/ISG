@@ -31,7 +31,7 @@ module IterativeSG
 		class << self
 			attr_reader :rules_layer, :solution_layer, :initial_shape
 			attr_reader :rules, :boundary_component
-			attr_reader :shapes, :shape_IDs, :UIDs
+			attr_reader :shapes, :shape_IDs, :UIDs, :entites_by_UID
 		end
 
 		########################################################################
@@ -75,7 +75,10 @@ module IterativeSG
 			@UIDs = Array.new
 			# Initialize existing shapes
 			@shapes = Array.new
-			initialize_existing_shapes			
+			# entities by UID enable us to quickly call entity by its UID
+			@entites_by_UID = Hash.new
+			initialize_existing_shapes	
+			initialize_origin_markers
 			
 			# Setup boundary and Geometry module to work with it
 			@boundary_component = boundary_component
@@ -108,23 +111,19 @@ module IterativeSG
 		########################################################################	
 		def Controller::define_rule(rule_ID, origin, shape, origin_new, shape_new)
 			# setup origin of base shape
-			origin_uid = set_UID(origin, generate_UID)
-			@UIDs << origin_uid
+			origin_uid = initialize_marker(origin)
 			
-			# setup base shape
-			shape_uid = shape.UID
+			# setup base shape. If it is alread setup, it will just return its UID
+			shape_uid = initialize_shape(shape)
 			# shape.set_attribute rule_ID, 'shape', shape_uid
 			
 			# setup origin of shape rule application
-			origin_new_uid = set_UID(origin_new, generate_UID)
-			@UIDs << origin_new_uid
+			origin_new_uid = initialize_marker(origin_new)
 				
 			# create shape rule application
 			shape_new_uid = Array.new
 			shape_new.each do |shape|
-				shp_uid = shape.UID
-				shape.set_attribute rule_ID, 'shape_new', shp_uid
-				shape_new_uid << shp_uid
+				shape_new_uid << initialize_shape(shape)
 			end
 			
 			# add all objects to @rules_layer
@@ -149,12 +148,16 @@ module IterativeSG
 		# 
 		# 
 		# Returns:
-		# True when object creation is sucessful.
+		# UID of new shape
 		########################################################################
 		def Controller::initialize_shape(group)
 			unless group.is_a? Sketchup::Group
 				UI.messagebox "Please select shape Group!", MB_OK
 				return false
+			end
+			# if group is already initialized
+			if group.respond_to? :initialize_ISG_shape
+				return group.UID
 			end
 			# extend SU Group with ISG methods
 			group.send(:extend, IterativeSG::Group)
@@ -167,13 +170,47 @@ module IterativeSG
 			@shape_IDs.sort!.uniq!
 			@UIDs << shp_uid
 			@dict_shapes['shape_IDs'] = @shape_IDs
-			
+			@entites_by_UID[shp_uid] = group
 			# and add it to list of shapes
 			@shapes << group
-			return true
+			return shp_uid
 		end
-		# IterativeSG::Controller::initialize_shape(Sketchup.active_model.selection[0])
+		
+		########################################################################
+		# Extend Sketchup::ComponentInstance with ISG methods. Also initialize it,
+		# so that it contains unique ID.
+		# 
+		# Accepts:
+		# An Origin Marker ComponentInstance.
+		# 
+		# Notes:
+		# 
+		# 
+		# Returns:
+		# UID of new marker.
+		########################################################################
+		def Controller::initialize_marker(component_instance)
+			unless component_instance.is_a? Sketchup::ComponentInstance
+				UI.messagebox "Please select Origin Marker!", MB_OK
+				return false
+			end
+			# if marker is already initialized
+			if component_instance.respond_to? :initialize_ISG_marker
+				return component_instance.UID
+			end
+			
+			# extend SU Group with ISG methods
+			component_instance.send(:extend, IterativeSG::ComponentInstance)
 
+			# initialize the shape
+			# TODO improve shape_ID mechanism.
+			uid = generate_UID
+			uid = component_instance.initialize_ISG_marker(uid)
+			@UIDs << uid
+			@entites_by_UID[uid] = component_instance
+			return uid
+		end
+		
 		########################################################################	
 		# PRIVATE METHODS BELOW!
 		########################################################################	
@@ -200,6 +237,31 @@ module IterativeSG
 				initialized_shapes << group
 			end
 			return initialized_shapes
+		end
+		
+		########################################################################
+		# Initialize all origin markers in the model.
+		# 
+		# Accepts:
+		# Nothing, fully automatic.
+		# 
+		# Notes:
+		# 
+		# Returns:
+		# Array of all initialized shapes (Sketchup::Groups)
+		########################################################################
+		def Controller::initialize_origin_markers
+			model = Sketchup.active_model
+			initialized_markers = Array.new
+			all_components = model.entities.to_a.select {|ent| ent.is_a? Sketchup::ComponentInstance}
+			all_markers = all_components.select {|ent| ent.name == 'Origin'}
+			all_markers.each do |obj|
+				attrdict = obj.attribute_dictionary 'IterativeSG'
+				next if attrdict == nil
+				self.initialize_marker(obj)
+				initialized_markers << obj
+			end
+			return initialized_markers
 		end
 		
 		########################################################################
