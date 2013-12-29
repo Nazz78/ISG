@@ -93,7 +93,7 @@ module IterativeSG
 			return true
 		end
 		# IterativeSG::Controller::initialize
-		
+	
 		########################################################################
 		# Create ISG rule. This method serves only to remember which entites
 		# define Shape Rule.
@@ -114,20 +114,20 @@ module IterativeSG
 		########################################################################	
 		def Controller::define_rule(rule_ID, origin, shape, origin_new, shape_new)
 			# setup origin of base shape
-			origin_uid = initialize_marker(origin)
+			origin_uid = origin.UID
 			
 			# setup base shape. If it is alread setup, it will just return its UID
-			shape_uid = initialize_shape(shape)
+			shape_uid = shape.UID
 			# shape.set_attribute rule_ID, 'shape', shape_uid
 			
 			# setup origin of shape rule application
-			origin_new_uid = initialize_marker(origin_new)
+			origin_new_uid = origin_new.UID
 				
 			# create shape rule application
 			shape_new_uid = Array.new
 			shape_new.each do |shape|
 				# collect all shape's UIDs so we can store them in dictionary
-				shape_new_uid << initialize_shape(shape)
+				shape_new_uid << shape.UID
 			end
 			
 			# TODO add all objects to @rules_layer
@@ -159,17 +159,18 @@ module IterativeSG
 				UI.messagebox "Please select shape Group!", MB_OK
 				return false
 			end
-			# if group is already initialized
-			if group.respond_to? :initialize_ISG_shape
-				return group.UID
+			# if group is not yet initialized
+			unless group.respond_to? :initialize_ISG_shape
+				# extend it with ISG methods
+				group.send(:extend, IterativeSG::Group)
+				# initialize the shape
+				# TODO improve shape_ID mechanism.
+				uid = generate_UID
+				shp_id, shp_uid = group.initialize_ISG_shape(@shape_IDs.last + 1, uid)
 			end
-			# extend SU Group with ISG methods
-			group.send(:extend, IterativeSG::Group)
+			shp_id = group.shape_ID unless shp_id
+			shp_uid = group.UID unless shp_uid
 
-			# initialize the shape
-			# TODO improve shape_ID mechanism.
-			uid = generate_UID
-			shp_id, shp_uid = group.initialize_ISG_shape(@shape_IDs.last + 1, uid)
 			@shape_IDs << shp_id
 			@shape_IDs.sort!.uniq!
 			@UIDs << shp_uid
@@ -198,18 +199,17 @@ module IterativeSG
 				UI.messagebox "Please select Origin Marker!", MB_OK
 				return false
 			end
-			# if marker is already initialized
-			if component_instance.respond_to? :initialize_ISG_marker
-				return component_instance.UID
+			# if marker is not yet initialized
+			unless component_instance.respond_to? :initialize_ISG_marker
+				# extend it with ISG methods
+				component_instance.send(:extend, IterativeSG::ComponentInstance)
+				# and initialize it
+				# TODO improve shape_ID mechanism.
+				uid = generate_UID
+				uid = component_instance.initialize_ISG_marker(uid)
 			end
-			
-			# extend SU Group with ISG methods
-			component_instance.send(:extend, IterativeSG::ComponentInstance)
+			uid = component_instance.UID unless uid
 
-			# initialize the shape
-			# TODO improve shape_ID mechanism.
-			uid = generate_UID
-			uid = component_instance.initialize_ISG_marker(uid)
 			@UIDs << uid
 			@entites_by_UID[uid] = component_instance
 			return uid
