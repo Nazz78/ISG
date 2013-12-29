@@ -34,11 +34,11 @@ module IterativeSG
 		# which can be convex.
 		# 
 		# Returns:
-		# nil
+		# True.
 		########################################################################
 		def Geometry::initialize(boundary_component)
 			@boundary_points = component_outer_loop(boundary_component)
-			return nil
+			return true
 		end
 		
 		########################################################################
@@ -167,8 +167,5 @@ module IterativeSG
 			# and return it
 			return points
 		end
-		
-
-
 	end
 end
