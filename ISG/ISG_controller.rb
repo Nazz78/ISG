@@ -77,6 +77,7 @@ module IterativeSG
 			@shapes = Array.new
 			# entities by UID enable us to quickly call entity by its UID
 			@entites_by_UID = Hash.new
+			# now we can initialize all existing shapes and markers
 			initialize_existing_shapes	
 			initialize_origin_markers
 			
@@ -248,7 +249,7 @@ module IterativeSG
 		# Notes:
 		# 
 		# Returns:
-		# Array of all initialized shapes (Sketchup::Groups)
+		# Array of all initialized markers (Sketchup::ComponentInstance)
 		########################################################################
 		def Controller::initialize_origin_markers
 			model = Sketchup.active_model

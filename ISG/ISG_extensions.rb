@@ -9,7 +9,7 @@
 ################################################################################
 module IterativeSG
 	############################################################################
-	# Extension of Sketchup::Group objects.
+	# Extension of Sketchup::Group objects which are used as shapes.
 	############################################################################
 	module Group
 		attr_reader :shape_ID, :UID
@@ -59,9 +59,24 @@ module IterativeSG
 			return @shape_ID, @UID
 		end
 	end
-	
+	############################################################################
+	# Extension of Sketchup::Group objects, which are used as origin markers.
+	############################################################################
 	module ComponentInstance
 		attr_reader :UID
+		########################################################################
+		# Initialize Sketchup::ComponentInstance object so that ISG can work
+		# with it. For  now we add uniqe ID so shapes can be easiliy identified.
+		# 
+		# Accepts:
+		# UID which is uniqe identifier, so we can receive specific instance
+		# of marker.
+		# 
+		# Notes:
+		# 
+		# Returns:
+		# Object's UID.
+		########################################################################
 		def initialize_ISG_marker(uid)
 			# create dictionary
 			@dict = self.attribute_dictionary 'IterativeSG', true
