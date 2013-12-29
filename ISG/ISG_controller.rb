@@ -75,18 +75,20 @@ module IterativeSG
 			@UIDs = Array.new
 			# Initialize existing shapes
 			@shapes = Array.new
+			# hash of rules
+			@rules = Hash.new
 			# entities by UID enable us to quickly call entity by its UID
 			@entites_by_UID = Hash.new
 			# now we can initialize all existing shapes and markers
 			initialize_existing_shapes	
 			initialize_origin_markers
 			
+			# we can now initialize existing rules
+			initialize_existing_rules
+			
 			# Setup boundary and Geometry module to work with it
 			@boundary_component = boundary_component
 			Geometry.initialize(boundary_component)
-			
-			# hash of rules
-			@rules = Hash.new
 		
 			return true
 		end
@@ -124,10 +126,11 @@ module IterativeSG
 			# create shape rule application
 			shape_new_uid = Array.new
 			shape_new.each do |shape|
+				# collect all shape's UIDs so we can store them in dictionary
 				shape_new_uid << initialize_shape(shape)
 			end
 			
-			# add all objects to @rules_layer
+			# TODO add all objects to @rules_layer
 			
 			# store it in ruby hash
 			@rules[rule_ID] = [origin, shape, origin_new, shape_new]
@@ -264,6 +267,33 @@ module IterativeSG
 			end
 			return initialized_markers
 		end
+		
+		########################################################################
+		# Define all existing rules, so we can work with objects directly.
+		# 
+		# Accepts:
+		# Nothing, fully automatic.
+		# 
+		# Notes:
+		# 
+		# Returns:
+		# List of all rules
+		########################################################################
+		def Controller::initialize_existing_rules
+			@dict_rules.each_pair do |name, rules|
+				rule_ID = name
+				# get objects from their UIDs
+				origin = @entites_by_UID[rules[0]]
+				shape = @entites_by_UID[rules[1]]
+				origin_new = @entites_by_UID[rules[2]]
+				shape_new = Array.new
+				rules[3].each do |ent|
+					shape_new << @entites_by_UID[ent]
+				end
+				self.define_rule(rule_ID, origin, shape, origin_new, shape_new)
+			end
+		end
+		#  IterativeSG::Controller::initialize; IterativeSG::Controller.rules
 		
 		########################################################################
 		# Generate unique string of 12 alphanumeric characters.
