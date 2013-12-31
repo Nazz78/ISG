@@ -31,7 +31,7 @@ module IterativeSG
 		class << self
 			attr_reader :rules_layer, :solution_layer, :initial_shape
 			attr_reader :rules, :boundary_component
-			attr_reader :shapes, :shape_IDs, :UIDs, :entites_by_UID
+			attr_reader :shapes, :shape_IDs, :UIDs, :entities_by_UID
 		end
 
 		########################################################################
@@ -78,7 +78,7 @@ module IterativeSG
 			# hash of rules
 			@rules = Hash.new
 			# entities by UID enable us to quickly call entity by its UID
-			@entites_by_UID = Hash.new
+			@entities_by_UID = Hash.new
 			# now we can initialize all existing shapes and markers
 			initialize_existing_shapes	
 			initialize_origin_markers
@@ -115,7 +115,7 @@ module IterativeSG
 			
 			# copy shapes of the rule and initialize them
 			new_shapes = Array.new
-			@rules[rule_id][3].each do |group|
+			@rules[rule_id]['shape_new'].each do |group|
 				# when shape is copied via Ruby, it doesn't copy the dictionary
 				new_group = group.copy
 				dict = new_group.attribute_dictionary 'IterativeSG', true
@@ -131,8 +131,8 @@ module IterativeSG
 			new_group.transformation = original_transformation
 
 			# calculate distance vector from original shape to to its marker
-			marker_position = @rules[rule_id][0].bounds.center
-			shape_position = @rules[rule_id][1].bounds.center
+			marker_position = @rules[rule_id]['origin'].bounds.center
+			shape_position = @rules[rule_id]['shape'].bounds.center
 			distance_vector = marker_position.vector_to shape_position
 			if distance_vector.length != 0
 				translation = Geom::Transformation.new distance_vector
@@ -155,7 +155,7 @@ module IterativeSG
 			
 			@shapes.delete original_shape
 			@UIDs.delete original_shape.UID
-			@entites_by_UID.delete original_shape.UID
+			@entities_by_UID.delete original_shape.UID
 			Sketchup.active_model.entities.erase_entities original_shape
 			
 			return shapes
@@ -263,9 +263,16 @@ module IterativeSG
 			# TODO add all objects to @rules_layer
 			
 			# store it in ruby hash
-			@rules[rule_ID] = [origin, shape, origin_new, shape_new]
+			@rules[rule_ID] = Hash.new
+			@rules[rule_ID]['origin'] = origin
+			@rules[rule_ID]['shape'] = shape
+			@rules[rule_ID]['origin_new'] = origin_new
+			@rules[rule_ID]['shape_new'] = shape_new
 			# and we also need to remember it so we can load it at some later time...
-			@dict_rules[rule_ID] = [origin_uid, shape_uid, origin_new_uid, shape_new_uid]
+			# but only store it if it doesn't exist yet
+			if @dict_rules[rule_ID] == nil
+				  @dict_rules[rule_ID] = [origin_uid, shape_uid, origin_new_uid, shape_new_uid]
+			end
 			return true
 		end
 		# IterativeSG::Controller::define_rule(rule_ID, origin, shape, origin_new, shape_new)
@@ -305,7 +312,7 @@ module IterativeSG
 			@shape_IDs.sort!.uniq!
 			@UIDs << shp_uid
 			@dict_shapes['shape_IDs'] = @shape_IDs
-			@entites_by_UID[shp_uid] = group
+			@entities_by_UID[shp_uid] = group
 			# and add it to list of shapes
 			@shapes << group
 			return shp_uid
@@ -341,7 +348,7 @@ module IterativeSG
 			uid = component_instance.UID unless uid
 
 			@UIDs << uid
-			@entites_by_UID[uid] = component_instance
+			@entities_by_UID[uid] = component_instance
 			return uid
 		end
 		
@@ -413,12 +420,12 @@ module IterativeSG
 			@dict_rules.each_pair do |name, rules|
 				rule_ID = name
 				# get objects from their UIDs
-				origin = @entites_by_UID[rules[0]]
-				shape = @entites_by_UID[rules[1]]
-				origin_new = @entites_by_UID[rules[2]]
+				origin = @entities_by_UID[rules[0]] # origin
+				shape = @entities_by_UID[rules[1]] # shape
+				origin_new = @entities_by_UID[rules[2]] # origin_new
 				shape_new = Array.new
-				rules[3].each do |ent|
-					shape_new << @entites_by_UID[ent]
+				rules[3].each do |ent| # shape_new
+					shape_new << @entities_by_UID[ent]
 				end
 				self.define_rule(rule_ID, origin, shape, origin_new, shape_new)
 			end
