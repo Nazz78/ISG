@@ -47,27 +47,46 @@ module IterativeSG
 		# works for convex hull boundaries.
 		# 
 		# Accepts:
-		# Sketchup::Face which is being checked.
+		# Sketchup::Face or Sketchup::Group object which is being checked.
 		# 
 		# Returns:
 		# True if face is completely inside the specified boundary,
 		# False otherwise.
 		########################################################################
-		def Geometry::inside_boundary?(face)
-			# collect all vertices positions
-			vertices = face.vertices
-			points = Array.new
-			vertices.each {|vertex| points << vertex.position}
+		def Geometry::inside_boundary?(entity)
+			# first check if bounds center is outside of the boundary
+			# we can skip rest if center is outside...
+			center = entity.bounds.center
+			result = Geom.point_in_polygon_2D(center, @boundary_points, true)
+			return false if result == false
 			
-			# check if all points lie inside specified convex boundary.
+			# if center is inside, do some additional checking by testing each
+			# vertex
+			points = Array.new
+			if entity.class == Sketchup::Group
+				trans = entity.transformation
+				faces = entity.entities.select {|ent| ent.is_a? Sketchup::Face}
+				faces.each do |face|
+					vertices = face.vertices
+					vertices.each do |vertex|
+						points << (vertex.position.transform! trans)
+					end
+				end
+			elsif entity.class == Sketchup::Face
+				# collect all vertices positions
+				vertices = entity.vertices
+				vertices.each {|vertex| points << vertex.position}
+			end	
+			
+			# check if all points lie inside specified boundary.
 			points.each do |pt|
 				result = Geom.point_in_polygon_2D(pt, @boundary_points, true)
 				return false if result == false
 			end
 			return true
 		end
-		# face = Sketchup.active_model.selection[0]
-		# ShapeGrammars::Geometry::inside_boundary?(face)
+		# ent = Sketchup.active_model.selection[0]
+		# IterativeSG::Geometry::inside_boundary?(ent)
 
 		########################################################################
 		# Check if two groups match. That is if the face they contain are exact
@@ -85,7 +104,10 @@ module IterativeSG
 		########################################################################
 		def Geometry::identical?(group_1, group_2)
 			# get local transformation of shape if their ID is the same
-			# return true if group_1.transformation.to_a == group_2.transformation.to_a
+			if group_1.shape_ID == group_2.shape_ID
+				# puts 'test'
+				return true if group_1.transformation.to_a == group_2.transformation.to_a
+			end
 			
 			# match points
 			group_1_vertices = group_1.entities.to_a.select { |ent|

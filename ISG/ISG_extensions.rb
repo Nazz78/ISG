@@ -13,6 +13,8 @@ module IterativeSG
 	############################################################################
 	module Group
 		attr_reader :shape_ID, :UID
+		# rules applied specified which rule has already been aplied to the shape
+		attr_accessor :rules_applied
 		########################################################################
 		# Initialize Sketchup::Group object so that ISG can work with it. For
 		# now we add uniqe ID so shapes can be easiliy identified.
@@ -29,8 +31,9 @@ module IterativeSG
 		# Object's ID and UID.
 		########################################################################
 		def initialize_ISG_shape(shape_id, shape_uid)
-			# create dictionary
+			# create dictionary if it doesn't exist
 			@dict = self.attribute_dictionary 'IterativeSG', true
+			@rules_applied = Array.new
 			
 			# if dictionary doesn't exist, add received ID
 			if (@dict.get_attribute 'IterativeSG', 'shape_ID') == nil

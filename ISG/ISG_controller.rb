@@ -93,7 +93,137 @@ module IterativeSG
 			return true
 		end
 		# IterativeSG::Controller::initialize
-	
+		
+		########################################################################
+		# Apply specified rule to speficied shape.
+		# 
+		# Accepts:
+		# Rule id to set the rule which will be applied
+		# Original shape is the actual shape to which rule will be applied. This
+		# shape will then be substituted (erased) with those defined by the rule.
+		# 
+		# Notes:
+		# Component that represents shape boundary should only contain one face
+		# which can be convex.
+		# 
+		# Returns:
+		# New shapes which are result of rule application.
+		########################################################################
+		def Controller::apply_rule(rule_id, original_shape)
+			# get position of original shape
+			original_transformation = original_shape.transformation
+			
+			# copy shapes of the rule and initialize them
+			new_shapes = Array.new
+			@rules[rule_id][3].each do |group|
+				# when shape is copied via Ruby, it doesn't copy the dictionary
+				new_group = group.copy
+				dict = new_group.attribute_dictionary 'IterativeSG', true
+				dict.set_attribute 'IterativeSG', 'shape_ID', group.shape_ID
+				new_shapes << new_group
+				new_group.layer = @solution_layer
+				self.initialize_shape(new_group)
+			end
+
+			# now transform the group so that it matches original shape
+			# transformation
+			new_group = Sketchup.active_model.entities.add_group new_shapes
+			new_group.transformation = original_transformation
+
+			# calculate distance vector from original shape to to its marker
+			marker_position = @rules[rule_id][0].bounds.center
+			shape_position = @rules[rule_id][1].bounds.center
+			distance_vector = marker_position.vector_to shape_position
+			if distance_vector.length != 0
+				translation = Geom::Transformation.new distance_vector
+				new_group.transform! translation
+			end	
+
+			shapes = new_group.explode.select {|ent| ent.is_a? Sketchup::Group}
+			previous_shape_replacement = nil
+			shapes.each do |ent|			
+				# now find out which shape replaces previous one and mark it
+				# TODO we should define this by the rule itself!
+				if Geometry::identical?(ent, original_shape)
+					original_rules = original_shape.rules_applied
+					ent.rules_applied << rule_id
+					ent.rules_applied << original_rules
+					ent.rules_applied.flatten!
+					break
+				end
+			end
+			
+			@shapes.delete original_shape
+			@UIDs.delete original_shape.UID
+			@entites_by_UID.delete original_shape.UID
+			Sketchup.active_model.entities.erase_entities original_shape
+			
+			return shapes
+		end
+		# original_shape = Sketchup.active_model.selection[0]
+		# IterativeSG::Controller::apply_rule('rule_001', Sketchup.active_model.selection[0])
+		
+		########################################################################
+		# Create design based on specified number of rule applications and rules
+		# used.
+		# 
+		# Accepts:
+		# num_of_applications tells controller how many rules should be applied.
+		# rules tells ISG which rules should be used.
+		# 
+		# Notes:
+		# 
+		# Returns:
+		# True once generation finishes.
+		########################################################################		
+		def Controller::generate_design(num_of_applications, rules = @rules.keys)
+			until num_of_applications == 0 do
+				@shapes.each do |shape|
+					unless shape.valid?
+						@shapes.delete shape
+					end
+				end
+				
+				# pick random rule
+				rule_id = rules[rand(rules.length)]
+				# define original shape
+				solution_shapes = @shapes.select {|shp| shp.layer == @solution_layer}
+				
+				# find appropriate candidate
+				candidate_found = false
+				original_shape = nil
+				while candidate_found == false
+					length = solution_shapes.length
+					original_shape = solution_shapes[rand(length)]
+					if original_shape.rules_applied.include? rule_id
+						# make sure we do not search it anymore
+						solution_shapes.delete(original_shape)
+						@shapes.delete(original_shape)
+					else
+						candidate_found = true
+					end
+				end
+				
+				# check that new shapes are inside boundary
+				new_shapes = Controller::apply_rule(rule_id, original_shape)
+				new_shapes.each do |shape|
+					if Geometry::inside_boundary?(shape) == false
+						Sketchup.active_model.entities.erase_entities shape
+						solution_shapes.delete new_shapes
+						@shapes.delete(new_shapes)
+						break
+					end
+				end
+				
+				Sketchup.active_model.active_view.refresh
+				
+				num_of_applications -= 1
+			end
+			return true
+		end
+		# IterativeSG::Controller::initialize
+		# IterativeSG::Controller::generate_design(100)
+
 		########################################################################
 		# Create ISG rule. This method serves only to remember which entites
 		# define Shape Rule.
@@ -125,9 +255,9 @@ module IterativeSG
 				
 			# create shape rule application
 			shape_new_uid = Array.new
-			shape_new.each do |shape|
+			shape_new.each do |shp|
 				# collect all shape's UIDs so we can store them in dictionary
-				shape_new_uid << shape.UID
+				shape_new_uid << shp.UID
 			end
 			
 			# TODO add all objects to @rules_layer
