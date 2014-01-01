@@ -168,6 +168,12 @@ module IterativeSG
 					return false
 				end
 			end
+			
+			# count removed shapes. If the number of removed shapes is identical
+			# to the number of new shapes, we know nothing is changed - consider
+			# the rule to not be applied
+			removed_shapes_count = 0
+			new_shapes_count = new_shapes.length
 						
 			new_shapes.each do |ent|			
 				# now find out which shape replaces previous one and mark it
@@ -178,6 +184,7 @@ module IterativeSG
 					ent.rules_applied.flatten!
 					# remove shape form list as we do not need to check it again.
 					new_shapes.delete ent
+					removed_shapes_count += 1
 					break
 				end
 			end
@@ -200,10 +207,17 @@ module IterativeSG
 						ent.rules_applied << shp.rules_applied.clone
 						ent.rules_applied.flatten!
 						remove_shape(shp)
+						removed_shapes_count += 1
 						# we can skipp all other shapes for this ent
 						break
 					end
 				end
+			end
+			
+			# if shapes just replaced existing ones, do not count it as a
+			# rule application
+			if removed_shapes_count == new_shapes_count
+				return false
 			end
 			
 			return @shapes
