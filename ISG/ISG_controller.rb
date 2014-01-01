@@ -13,6 +13,7 @@ Sketchup.send_action "showRubyPanel:"
 rubyScriptsPath = File.expand_path(File.dirname(__FILE__))
 Sketchup.load(File.join(rubyScriptsPath, 'ISG_geometry'))
 Sketchup.load(File.join(rubyScriptsPath, 'ISG_extensions'))
+Sketchup.load(File.join(rubyScriptsPath, 'ISG_user_interface'))
 
 ################################################################################
 # Base ShapeGrammars module for namespace clashes prevention
@@ -53,9 +54,21 @@ module IterativeSG
 		# True if initialization is sucesfull, False otherwise.
 		########################################################################
 		def Controller::initialize(boundary_component = Sketchup.active_model.selection[0])
-			unless boundary_component.is_a? Sketchup::ComponentInstance
-				UI.messagebox "Please select boundary Component!", MB_OK
-				return false
+			if boundary_component.is_a? Sketchup::ComponentInstance
+				# do nothing, all seems OK
+			# if boundary component is not selected, try to guess it
+			else
+				components = Sketchup.active_model.entities.select { |ent|
+					ent.is_a? Sketchup::ComponentInstance }
+				boundaries = components.select { |ent|
+					ent.name == 'ISG Boundary' }
+				
+				if boundaries.length > 1
+					UI.messagebox "Please select boundary Component!", MB_OK
+					return false
+				else
+					boundary_component = boundaries[0]
+				end
 			end
 			
 			# create new controller if it does not exist yet
@@ -172,6 +185,8 @@ module IterativeSG
 			remove_shape(original_shape)
 		
 			# TODO improve search mechanism
+			# TODO return false when nothing is changes = all shapes just replace
+			# some others
 			# also make sure there are no other shapes identical to new ones
 			# created. If there are, replace them and update rules_applied.
 			new_shapes.each do |ent|
@@ -527,3 +542,6 @@ module IterativeSG
 		end
 	end
 end
+
+# Once all scripts are loaded, we can add UI
+IterativeSG::create_menu
