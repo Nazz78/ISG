@@ -96,6 +96,9 @@ module IterativeSG
 			initialize_existing_shapes	
 			initialize_origin_markers
 			
+			# once shapes and markers are initialized, we should cleanup rules
+			cleanup_rules
+			
 			# we can now initialize existing rules
 			initialize_existing_rules
 			
@@ -274,7 +277,6 @@ module IterativeSG
 		end
 		# IterativeSG::Controller::initialize;   IterativeSG::Controller::generate_design(100)
 		# IterativeSG::Controller::generate_design(100)
-		# 
 
 		########################################################################
 		# Create ISG rule. This method serves only to remember which entites
@@ -665,8 +667,54 @@ module IterativeSG
 				end
 			end
 		end
+		
+		########################################################################
+		# Cleanup all rules where there is some entity missing (origin marker,
+		# shape, new shape or new origin marker)
+		# 
+		# Accepts:
+		# Nothing,  fully automatic
+		# 
+		# Notes:
+		# 
+		# Returns:
+		# List of all rules deleted or nil if no rule was deleted.
+		########################################################################	
+		def Controller::cleanup_rules
+			deleted_rules = Array.new
+			@dict_rules.each_pair do |rule_name, rules|
+				delete_rule = false
+				rules.flatten!
+				rules.each do |ent|
+					# if entity doesn't exist, delete rule
+					if (@entities_by_UID[ent] == nil) or (@entities_by_UID[ent].deleted?)
+						puts 'deleted ent found'
+						delete_rule = true
+					end
+				end
+				
+				# delete rule from dictionary of rules and @rules
+				# variable if some entitiy doesn't exist
+				if delete_rule == true
+					@dict_rules.delete_key rule_name
+					@rules.delete rule_name
+					deleted_rules << rule_name
+				end
+			end
+			if deleted_rules.empty?
+				return nil 
+			else
+				return deleted_rules
+			end
+		end
+
 	end
 end
 
 # Once all scripts are loaded, we can add UI
 IterativeSG::create_menu
+
+# Helper methods - remove for public release
+ISGC = IterativeSG::Controller
+def sel_array; return Sketchup::active_model.selection.to_a; end
+def sel; return Sketchup::active_model.selection[0]; end
