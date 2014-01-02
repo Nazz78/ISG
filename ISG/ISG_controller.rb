@@ -62,7 +62,6 @@ module IterativeSG
 					ent.is_a? Sketchup::ComponentInstance }
 				boundaries = components.select { |ent|
 					ent.name == 'ISG Boundary' }
-				
 				if boundaries.length > 1
 					UI.messagebox "Please select boundary Component!", MB_OK
 					return false
@@ -242,27 +241,29 @@ module IterativeSG
 		# True once generation finishes.
 		########################################################################		
 		def Controller::generate_design(num_of_applications, rules = @rules.keys)
+			# remember which rules are used at this generation so we can remove
+			# them when they can not be applied anymore
+			@temp_rules = rules.clone
+			rules_applied = 0
 			until num_of_applications == 0 do
-				
-				# pick random rule
-				rule_id = rules[rand(rules.length)]
-				# define original shape
-				solution_shapes = @shapes.select {|shp| shp.layer == @solution_layer}
-
-				# find appropriate candidate
-				candidate_found = false
-				original_shape = nil
-				while candidate_found == false
-					length = solution_shapes.length
-					original_shape = solution_shapes[rand(length)]
-
-					if original_shape.rules_applied.include? rule_id
-						# make sure we do not search it anymore
-						solution_shapes.delete(original_shape)
-					else
-						candidate_found = true
-					end
+				# exit generation if there are no more rules which can be applied.
+				if @temp_rules.empty?
+					puts "Generation finished after #{rules_applied} rules applied."
+					break 
 				end
+				# pick random rule
+				rule_id = @temp_rules[rand(@temp_rules.length)]
+				# find appropriate candidates for specified rule
+				candidate_shapes = collect_candidate_shapes(rule_id)
+				# exit if there is no candidate for this rule and also remove
+				# the rule from list of rules
+				if candidate_shapes == nil
+					@temp_rules.delete rule_id
+					next 
+				end
+
+				# pick random candidate
+				original_shape = candidate_shapes[rand( candidate_shapes.length)]
 				
 				# check that new shapes are inside boundary
 				new_shapes = Controller::apply_rule(rule_id, original_shape)
@@ -272,12 +273,13 @@ module IterativeSG
 				Sketchup.active_model.active_view.refresh
 				
 				num_of_applications -= 1
+				rules_applied += 1
 			end
 			return true
 		end
 		# IterativeSG::Controller::initialize;   IterativeSG::Controller::generate_design(100)
 		# IterativeSG::Controller::generate_design(100)
-
+		
 		########################################################################
 		# Create ISG rule. This method serves only to remember which entites
 		# define Shape Rule.
@@ -665,6 +667,31 @@ module IterativeSG
 				else
 					return current_uid
 				end
+			end
+		end
+		
+		########################################################################
+		# Collect all shapes to which specified rule can be applied.
+		# 
+		# Accepts:
+		# Rule id is a string which represents a rule (eg. 'Rule 1')
+		# 
+		# Notes:
+		# 
+		# Returns:
+		# List of all shapes to which rule can be applied or nil if no shape
+		# can accept specified rule.
+		########################################################################	
+		def Controller::collect_candidate_shapes(rule_id)
+			shapes = @shapes.select {|shp| shp.layer == @solution_layer}
+			candidates = Array.new
+			shapes.each do |shp|
+				candidates << shp unless shp.rules_applied.include? rule_id
+			end
+			if candidates.empty?
+				return nil
+			else
+				return candidates
 			end
 		end
 		

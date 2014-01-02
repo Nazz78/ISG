@@ -20,6 +20,8 @@ module IterativeSG
 				Controller::initialize(Sketchup.active_model.selection[0])
 			end
 			isg_tool_menu.add_item('Generate SG Design') do
+				# Make sure Controller is properly initialized
+				Controller::initialize(Sketchup.active_model.selection[0])
 				prompts = ["Number of rule applicaitons:"]
 				defaults = [100]
 				input = UI.inputbox prompts, defaults, "Generate Shape Grammar Design"
