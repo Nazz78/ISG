@@ -134,7 +134,7 @@ module IterativeSG
 				dict = new_group.attribute_dictionary 'IterativeSG', true
 				dict.set_attribute 'IterativeSG', 'shape_ID', group.shape_ID
 				new_shapes << new_group
-				self.initialize_shape(new_group)
+				initialize_shape(new_group)
 				new_group.layer = @solution_layer
 			end
 
@@ -294,7 +294,9 @@ module IterativeSG
 		# Returns:
 		# True when rule definition is sucessful.
 		########################################################################	
-		def Controller::define_rule(rule_ID, origin, shape, origin_new, shape_new)
+		def Controller::define_rule(rule_ID, origin = @temp_origin,
+				shape = @temp_shape, origin_new = @temp_origin_new,
+				shape_new = @temp_shape_new)
 			# setup origin of base shape
 			origin_uid = origin.UID
 			
@@ -329,7 +331,102 @@ module IterativeSG
 		end
 		# IterativeSG::Controller::define_rule(rule_ID, origin, shape, origin_new, shape_new)
 
-
+		########################################################################
+		# Helper method to quickly pick original shape. That is the shape which
+		# will be replaced by new shape(s) once rule is applied. This method is
+		# intended to be called once user has selected origin marker and shape.
+		# 
+		# Accepts:
+		# If argument is provided, it should an array which contains Origin mark
+		# and one Shape. If arguments are not provided this method will pick
+		# them up based on selection. In the future we might also accept
+		# Sketchup::Face as shape argument and automatically convert it to
+		# Group, but for now it is OK.
+		# 
+		# Notes:
+		# 
+		# Returns:
+		# Marker and Shape, both set up for ISG work.
+		########################################################################
+		def Controller::pick_original_shape(selection = Sketchup.active_model.selection.to_a)
+			if selection.length != 2
+				UI.messagebox "Please select one origin marker (Component) and one shape (Group).", MB_OK
+				return false
+			end
+			marker = selection.select {|ent| ent.name == 'ISG_Origin'}
+			shape = selection.select {|ent| ent.is_a? Sketchup::Group}
+			
+			# If all is OK, initialize marker
+			if marker.length == 1
+				initialize_marker(marker[0])
+			else
+				UI.messagebox "Please make sure your origin marker is named correctly (ISG_Origin).", MB_OK
+				return false
+			end
+			
+			# If all is OK, initialize shape
+			if shape.length == 1
+				initialize_shape(shape[0])
+			else
+				UI.messagebox "Please make sure you have only one Group selected as a basic shape.", MB_OK
+			end
+			
+			@temp_origin = marker[0]
+			@temp_shape = shape[0]
+			# now return them
+			return marker[0], shape[0]
+		end
+		# IterativeSG::Controller::pick_original_shape
+		
+		########################################################################
+		# Helper method to quickly pick new shape. We need to specify one origin
+		# marker (component instance) and at least one shape (group). Of course.
+		# shape can also be composed from many shapes. This method is to be used
+		# once user selects new origin marker and new shape.
+		# 
+		# Accepts:
+		# If argument is provided, it should an array which contains Origin mark
+		# and one Shape. If arguments are not provided this method will pick
+		# them up based on selection.
+		# 
+		# Notes:
+		# 
+		# Returns:
+		# Marker and Shapes array, both set up for ISG work.
+		########################################################################
+		def Controller::pick_new_shape(selection = Sketchup.active_model.selection.to_a)
+			# exit if marker is not picked up correctly
+			marker = selection.select {|ent| ent.name == 'ISG_Origin'}
+			if marker.length != 1
+				UI.messagebox "Please make sure your origin marker is named correctly (ISG_Origin).", MB_OK
+				return false
+			else
+				initialize_marker(marker[0])
+			end	
+			
+			
+			# filter shapes to groups
+			shapes = selection.select {|ent| ent.is_a? Sketchup::Group}
+			# TODO also make sure original shape is not among picked shapes...
+			if shapes.length < 1
+				UI.messagebox "Please make sure you have at least one Group selected as a derived shape.", MB_OK
+				return false
+			else
+				shapes.each do |shape|
+					initialize_shape(shape)
+				end
+			end
+			@temp_origin_new = marker[0]
+			@temp_shape_new = shapes
+			return marker[0], shapes
+		end
+		
+		
+		########################################################################	
+		# PRIVATE METHODS BELOW!
+		########################################################################	
+		private
+		
 		########################################################################
 		# Extend Sketchup::Group with ISG methods. Also initialize it, so it
 		# will contain unique ID.
@@ -359,6 +456,7 @@ module IterativeSG
 			end
 			shp_id = group.shape_ID unless shp_id
 			shp_uid = group.UID unless shp_uid
+			group.name = 'ISG_Shape' unless group.name = 'ISG_Shape'
 
 			@shape_IDs << shp_id
 			@shape_IDs.sort!.uniq!
@@ -405,7 +503,7 @@ module IterativeSG
 		########################################################################
 		def Controller::initialize_marker(component_instance)
 			unless component_instance.is_a? Sketchup::ComponentInstance
-				UI.messagebox "Please select Origin Marker!", MB_OK
+				UI.messagebox "Please select ISG Origin Marker!", MB_OK
 				return false
 			end
 			# if marker is not yet initialized
@@ -424,10 +522,6 @@ module IterativeSG
 			return uid
 		end
 		
-		########################################################################	
-		# PRIVATE METHODS BELOW!
-		########################################################################	
-		private
 		########################################################################
 		# Initialize all existing ISG shapes in the model.
 		# 
@@ -446,7 +540,7 @@ module IterativeSG
 			all_groups.each do |group|
 				attrdict = group.attribute_dictionary 'IterativeSG'
 				next if attrdict == nil
-				self.initialize_shape(group)
+				initialize_shape(group)
 				initialized_shapes << group
 			end
 			return initialized_shapes
@@ -467,11 +561,11 @@ module IterativeSG
 			model = Sketchup.active_model
 			initialized_markers = Array.new
 			all_components = model.entities.to_a.select {|ent| ent.is_a? Sketchup::ComponentInstance}
-			all_markers = all_components.select {|ent| ent.name == 'Origin'}
+			all_markers = all_components.select {|ent| ent.name == 'ISG_Origin'}
 			all_markers.each do |obj|
 				attrdict = obj.attribute_dictionary 'IterativeSG'
 				next if attrdict == nil
-				self.initialize_marker(obj)
+				initialize_marker(obj)
 				initialized_markers << obj
 			end
 			return initialized_markers
