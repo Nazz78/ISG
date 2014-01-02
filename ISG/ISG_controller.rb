@@ -14,6 +14,8 @@ rubyScriptsPath = File.expand_path(File.dirname(__FILE__))
 Sketchup.load(File.join(rubyScriptsPath, 'ISG_geometry'))
 Sketchup.load(File.join(rubyScriptsPath, 'ISG_extensions'))
 Sketchup.load(File.join(rubyScriptsPath, 'ISG_user_interface'))
+# Load also SKUI for GUI
+Sketchup.load(File.join(rubyScriptsPath, 'SKUI', 'core.rb'))
 
 ################################################################################
 # Base ShapeGrammars module for namespace clashes prevention
