@@ -34,16 +34,18 @@ module IterativeSG
 			isg_tool_menu.add_item('Pick New Shape') do
 				Controller::pick_new_shape
 			end
-			isg_tool_menu.add_item('Declare New Rule') do
-				prompts = ["Define Rule Name"]
-				defaults = ['rule_001']
-				#TODO rules should be checked if they alreay exist!!!
-				input = UI.inputbox prompts, defaults, "Define ISG Rule"
+			isg_tool_menu.add_item('Declare New ISG Rule') do
+				prompts = ["Define New Rule Name: "]
+				defaults = [Controller::generate_rule_name]
+				input = UI.inputbox prompts, defaults, "Declare New ISG Rule"
 				if IterativeSG::Controller.rules.keys.include? input[0]
 					overload = UI.messagebox "Rule with this name already exists. Do you want to replace it?", MB_YESNO
-					return false if overload == 7 # 6=YES, 7=NO
 				end
-				Controller::define_rule(input[0])
+				if overload == 7 # 6=YES, 7=NO
+					puts "Rule not being created"
+				else
+					Controller::define_rule(input[0])
+				end
 			end
 			@ISG_menu = tool_menu
 		end

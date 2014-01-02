@@ -420,7 +420,24 @@ module IterativeSG
 			@temp_shape_new = shapes
 			return marker[0], shapes
 		end
+
 		
+		########################################################################
+		# Generate new rule name based on the number of already existent rules.
+		# Template used: "Rule n" where n is number of rules + 1.
+		# 
+		# Accepts:
+		# Nothing
+		# 
+		# Notes:
+		# 
+		# Returns:
+		# String with a name of proposed rule (eg. "Rule 1"
+		########################################################################
+		def Controller::generate_rule_name
+			number = @rules.keys.length + 1
+			return "Rule #{number}"
+		end
 		
 		########################################################################	
 		# PRIVATE METHODS BELOW!
