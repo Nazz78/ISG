@@ -32,10 +32,33 @@ module IterativeSG
 			isg_tool_menu.add_item('Generate SG Design') do
 				# Make sure Controller is properly initialized
 				Controller::initialize(Sketchup.active_model.selection[0])
-				prompts = ["Number of rule applicaitons:"]
-				defaults = [100]
+				prompts = ["Number of rule applicaitons: ", "Rules applied: ","Set timeout timer (in seconds): "]
+				controller_rules = Controller.rules.keys
+				rules = String.new
+				controller_rules.each { |name| rules += "#{name}, "}
+				# remove last comma
+				rules.chop!.chop!
+				# set default text values
+				defaults = [50, rules, 20]
+				
 				input = UI.inputbox prompts, defaults, "Generate Shape Grammar Design"
-				Controller::generate_design(input[0])
+				iterations = input[0]
+				# for rules_used see below
+				timeout = input[2]
+				
+				# if no rules are specified, use all rules specified
+				rules_used = Array.new
+				if input[1] == nil
+					rules_used = controller_rules
+				else
+					rules_used = input[1].split ", "
+					# also make sure those rules really exist!
+					rules_used.each do |rule_name|
+						rules_used.delete rule_name unless controller_rules.include? rule_name
+					end
+				end
+
+				Controller::generate_design(iterations, rules_used, timeout)
 			end
 			
 			# add separator ====================================================

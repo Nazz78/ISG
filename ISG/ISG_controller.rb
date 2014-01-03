@@ -248,10 +248,12 @@ module IterativeSG
 		# Returns:
 		# True once generation finishes.
 		########################################################################		
-		def Controller::generate_design(num_of_applications, rules = @rules.keys)
+		def Controller::generate_design(num_of_applications, rules = @rules.keys, timeout = 20)
 			# remember which rules are used at this generation so we can remove
 			# them when they can not be applied anymore
 			@temp_rules = rules.clone
+			timer = Time.now.to_f
+			timeout = 0
 			rules_applied = 0
 			until num_of_applications == 0 do
 				# exit generation if there are no more rules which can be applied.
@@ -275,6 +277,14 @@ module IterativeSG
 				
 				# check that new shapes are inside boundary
 				new_shapes = Controller::apply_rule(rule_id, original_shape)
+				
+				# exit if timeout is reached
+				timeout = (Time.now.to_f - timer)
+				if timeout > 20
+					# round timeout to two decimals
+					timeout = ((timeout*100).round)/100.0
+					num_of_applications = 0
+				end
 				# do not count it if rule application didn't create any new shapes...
 				next if new_shapes == false
 				
@@ -283,6 +293,7 @@ module IterativeSG
 				num_of_applications -= 1
 				rules_applied += 1
 			end
+			puts "Completion time =  #{Time.now.to_f - timer}"
 			UI.messagebox "Shape generation done!", MB_OK
 			return true
 		end
@@ -486,7 +497,7 @@ module IterativeSG
 			end
 			shp_id = group.shape_ID unless shp_id
 			shp_uid = group.UID unless shp_uid
-			group.name = 'ISG_Shape' unless group.name = 'ISG_Shape'
+			group.name = 'ISG_Shape' unless group.name == 'ISG_Shape'
 
 			@shape_IDs << shp_id
 			@shape_IDs.sort!.uniq!
@@ -707,7 +718,7 @@ module IterativeSG
 				return candidates
 			end
 		end
-		# ISGC::collect_candidate_shapes("Rule 1")
+		# ISGC::collect_candidate_shapes("Rule 1", 1, 1)
 		
 		########################################################################
 		# Cleanup all rules where there is some entity missing (origin marker,
