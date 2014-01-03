@@ -86,6 +86,57 @@ module IterativeSG
 		end
 		# ent = Sketchup.active_model.selection[0]
 		# IterativeSG::Geometry::inside_boundary?(ent)
+		
+		########################################################################
+		# Return only the specified number of closest shapes.
+		# 
+		# Accepts:
+		# entity - solution shape (Group)
+		# num_of_closest - number of closest shapes returned
+		# 
+		# Notes:
+		# TODO: at the moment we only compare distance from bounding box center.
+		# We should also check if two shapes are toucing each other.
+		# 
+		# Returns:
+		# Sorted array of shapes (groups) based on distance (closest at the
+		# begining)
+		########################################################################
+		def Geometry::get_closest(entity, num_of_closest = 10)
+			sorted_by_distance = self.sort_by_distance(entity)
+			closest_objects = sorted_by_distance[0..num_of_closest-1]
+			return closest_objects
+		end
+		# IterativeSG::Geometry::get_closest(sel)
+
+		########################################################################
+		# Sort all shapes in solution based on the distance from the 
+		# selected shape.
+		# 
+		# Accepts:
+		# entity - solution shape (Group)
+		# 
+		# Notes:
+		# TODO: at the moment we only compare distance from bounding box center.
+		# We should also check if two shapes are toucing each other.
+		# 
+		# Returns:
+		# Sorted array of shapes (groups) based on distance (closest at the
+		# begining)
+		########################################################################
+		def Geometry::sort_by_distance(entity)
+			point = entity.position
+			distance_hash = Hash.new
+			Controller.solution_shapes.each do |shape|
+				next if entity == shape
+				distance_hash[shape] = point.distance(shape.position)
+			end
+			sorted_distance = distance_hash.sort_by { |key, value| value }
+			closest_objects = Array.new
+			sorted_distance.each { |obj| closest_objects << obj[0] }
+			return closest_objects
+		end
+				
 
 		########################################################################
 		# Check if two groups match. That is if the face they contain are exact
@@ -102,11 +153,14 @@ module IterativeSG
 		# True if two groups are identical, False otherwise.
 		########################################################################
 		def Geometry::identical?(group_1, group_2)
+			# most of the shapes do not match, so skip all other if their position
+			# is not the same.
+			# TODO maybe we should improve this?
+			return false if group_1.position != group_2.position
+
 			# get local transformation of shape if their ID is the same
 			if group_1.shape_ID == group_2.shape_ID
 				return true if group_1.trans_array == group_2.trans_array
-				# if ID is the same but position is different, shapes do not match
-				return false if group_1.position != group_2.position
 			end
 			
 			# match points

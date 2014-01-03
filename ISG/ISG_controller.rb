@@ -33,7 +33,7 @@ module IterativeSG
 		# Create Class level accessors
 		class << self
 			attr_reader :rules_layer, :solution_layer, :initial_shape
-			attr_reader :rules, :boundary_component
+			attr_reader :rules, :boundary_component, :solution_shapes
 			attr_reader :shapes, :shape_IDs, :UIDs, :entities_by_UID
 		end
 
@@ -89,6 +89,7 @@ module IterativeSG
 			@UIDs = Array.new
 			# Initialize existing shapes
 			@shapes = Array.new
+			@solution_shapes = Array.new
 			# hash of rules
 			@rules = Hash.new
 			# entities by UID enable us to quickly call entity by its UID
@@ -159,8 +160,11 @@ module IterativeSG
 			# explode groups at correct position and filter them to shapes
 			exploded_ents = new_group.explode
 			new_shapes = exploded_ents.select {|ent| ent.is_a? Sketchup::Group}
-			# update shape variables
-			new_shapes.each {|ent| ent.update_shape}
+			new_shapes.each do |ent|
+				ent.update_shape
+				# also update list of @solution_shapes
+				@solution_shapes << ent
+			end
 			
 			# now make sure rule application is inside
 			# bounds, if not, erase all and return false
@@ -205,7 +209,7 @@ module IterativeSG
 			new_shapes.each do |ent|
 				# remove entity from the search using clone, otherwise it is 
 				#just a pointer and shape gets removed from @shapes list.
-				temp_shapes = @shapes.clone
+				temp_shapes = @solution_shapes.clone
 				# remove compared entity, so it is not matched against itself.
 				temp_shapes.delete ent
 				temp_shapes.each do |shp|
@@ -510,6 +514,7 @@ module IterativeSG
 			@UIDs.delete group.UID
 			@entities_by_UID.delete(group.UID)
 			@shapes.delete group
+			@solution_shapes.delete group
 			Sketchup.active_model.entities.erase_entities group
 			return true
 		end
@@ -568,6 +573,8 @@ module IterativeSG
 				next if attrdict == nil
 				initialize_shape(group)
 				initialized_shapes << group
+				# also add group to @solution_shapes
+				@solution_shapes << group if group.layer == @solution_layer
 			end
 			return initialized_shapes
 		end
@@ -693,6 +700,7 @@ module IterativeSG
 			shapes.each do |shp|
 				candidates << shp unless shp.rules_applied.include? rule_id
 			end
+			
 			if candidates.empty?
 				return nil
 			else
