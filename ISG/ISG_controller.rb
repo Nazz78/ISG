@@ -306,6 +306,8 @@ module IterativeSG
 		# 
 		# Accepts:
 		# rule_ID - rule identifier
+		# mirror_x -  can the rule mirrored in x direction?
+		# mirror_y -  can the rule mirrored in y direction?
 		# origin - marker to set origin of existing shape
 		# shape - existing shape (Group with Face)
 		# origin_new -  marker to set origin of new shape.
@@ -318,9 +320,9 @@ module IterativeSG
 		# Returns:
 		# True when rule definition is sucessful.
 		########################################################################	
-		def Controller::define_rule(rule_ID, origin = @temp_origin,
-				shape = @temp_shape, origin_new = @temp_origin_new,
-				shape_new = @temp_shape_new)
+		def Controller::define_rule(rule_ID, mirror_x = false, mirror_y = false,
+				origin = @temp_origin, shape = @temp_shape,
+				origin_new = @temp_origin_new, shape_new = @temp_shape_new)
 			# setup origin of base shape
 			origin_uid = origin.UID
 			
@@ -346,10 +348,13 @@ module IterativeSG
 			@rules[rule_ID]['shape'] = shape
 			@rules[rule_ID]['origin_new'] = origin_new
 			@rules[rule_ID]['shape_new'] = shape_new
+			@rules[rule_ID]['mirror_x'] = mirror_x
+			@rules[rule_ID]['mirror_y'] = mirror_y
 			# and we also need to remember it so we can load it at some later time...
 			# but only store it if it doesn't exist yet
 			if @dict_rules[rule_ID] == nil
-				  @dict_rules[rule_ID] = [origin_uid, shape_uid, origin_new_uid, shape_new_uid]
+				  @dict_rules[rule_ID] = [origin_uid, shape_uid, origin_new_uid,
+					  shape_new_uid, mirror_x, mirror_y]
 			end
 			return true
 		end
@@ -632,12 +637,14 @@ module IterativeSG
 				# get objects from their UIDs
 				origin = @entities_by_UID[rules[0]] # origin
 				shape = @entities_by_UID[rules[1]] # shape
-				origin_new = @entities_by_UID[rules[2]] # origin_new
+				origin_new = @entities_by_UID[rules[2]] # origin_new		
 				shape_new = Array.new
 				rules[3].each do |ent| # shape_new
 					shape_new << @entities_by_UID[ent]
 				end
-				self.define_rule(rule_ID, origin, shape, origin_new, shape_new)
+				mirror_x = rules[4]
+				mirror_y = rules[5]
+				self.define_rule(rule_ID, mirror_x, mirror_y, origin, shape, origin_new, shape_new)
 			end
 		end
 		#  IterativeSG::Controller::initialize; IterativeSG::Controller.rules
@@ -738,6 +745,7 @@ module IterativeSG
 				delete_rule = false
 				rules.flatten!
 				rules.each do |ent|
+					next unless ent.is_a? String
 					# if entity doesn't exist, delete rule
 					if (@entities_by_UID[ent] == nil) or (@entities_by_UID[ent].deleted?)
 						puts 'deleted ent found'

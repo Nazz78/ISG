@@ -46,9 +46,9 @@ module IterativeSG
 				# for rules_used see below
 				timeout = input[2]
 				
-				# if no rules are specified, use all rules specified
+				# if no rules are specified, use all rules...
 				rules_used = Array.new
-				if input[1] == nil
+				if input[1] == ''
 					rules_used = controller_rules
 				else
 					rules_used = input[1].split ", "
@@ -57,7 +57,11 @@ module IterativeSG
 						rules_used.delete rule_name unless controller_rules.include? rule_name
 					end
 				end
-
+				if rules_used.empty?
+					UI.messagebox "Please specify correct rule names", MB_OK 
+					return false
+				end
+				
 				Controller::generate_design(iterations, rules_used, timeout)
 			end
 			
@@ -72,8 +76,8 @@ module IterativeSG
 				Controller::pick_new_shape
 			end
 			isg_tool_menu.add_item('Declare New ISG Rule') do
-				prompts = ["Define New Rule Name: "]
-				defaults = [Controller::generate_rule_name]
+				prompts = ["Define New Rule Name: ", "Mirror in X direction: ", "Mirror in Y direction"]
+				defaults = [Controller::generate_rule_name, false, false]
 				input = UI.inputbox prompts, defaults, "Declare New ISG Rule"
 				if IterativeSG::Controller.rules.keys.include? input[0]
 					overload = UI.messagebox "Rule with this name already exists. Do you want to replace it?", MB_YESNO
@@ -81,7 +85,10 @@ module IterativeSG
 				if overload == 7 # 6=YES, 7=NO
 					puts "Rule not being created"
 				else
-					Controller::define_rule(input[0])
+					# make sure mirroring info is true boolean, not string
+					mirror_x = (input[1] == 'true' or input[1] == 'True' or input[1].to_s == '1')
+					mirror_y = (input[2] == 'true' or input[2] == 'True' or input[2].to_s == '1')
+					Controller::define_rule(input[0], mirror_x, mirror_y)
 				end
 			end
 			@ISG_menu = tool_menu
