@@ -116,20 +116,49 @@ module IterativeSG
 		# Apply specified rule to speficied shape.
 		# 
 		# Accepts:
-		# Rule id to set the rule which will be applied
-		# Original shape is the actual shape to which rule will be applied. This
+		# mark_rule is a flag to tell if original shape should be marked with
+		# the rule or not. If true the shape will receive rule_id and will thus
+		# not be found by collect_candidate_shapes method for that specific rule.
+		# rule id defines the rule which will be applied
+		# original_shape is the actual shape to which rule will be applied. This
 		# shape will then be substituted (erased) with those defined by the rule.
+		# mirror_x and mirror_y can be either 1 or -1. 1 means no reflection, -1
+		# means reflection in specified direction.
 		# 
 		# Notes:
 		# Component that represents shape boundary should only contain one face
 		# which can be convex.
 		# 
 		# Returns:
-		# New shapes which are result of rule application.
+		# New shapes which are result of rule application or false when rule
+		# application does not change the design (all new shapes are identical
+		# to already existent ones).
 		########################################################################
-		def Controller::apply_rule(rule_id, original_shape)
+		def Controller::apply_rule(mark_rule, rule_id, original_shape, mirror_x, mirror_y)
 			# get position of original shape
 			original_transformation = original_shape.transformation
+			
+			# calculate mirroring if needed
+			if @rules[rule_id]['mirror_x'] == true or @rules[rule_id]['mirror_y'] == true
+				# if original_shape is already mirrored, we need to recalculate
+				# scaling transformation to adapt it
+				if original_transformation.xaxis.x == -1
+					mirror_x = mirror_x * -1
+				end
+				if original_transformation.yaxis.y == -1
+					mirror_y = mirror_y * -1
+				end
+				# apply mirroring if needed
+				unless mirror_x == 1 and mirror_y == 1
+					# let's apply the transformation!
+					reflection = Geom::Transformation.scaling original_shape.position, mirror_x, mirror_y, 1
+					original_shape.transform! reflection
+				end
+			end
+			
+			# now get proper transformation
+			original_transformation = original_shape.transformation
+			@new_original_shape = nil
 			
 			# copy shapes of the rule and initialize them
 			new_shapes = Array.new
@@ -172,8 +201,11 @@ module IterativeSG
 				if Geometry::inside_boundary?(shape) == false
 					# if rule is outside boundary, base shape shuld be marked
 					# so that the rule is not applied anymore
-					original_shape.rules_applied << rule_id
-					original_shape.rules_applied.flatten!
+					if mark_rule == true
+						original_shape.rules_applied << rule_id
+						original_shape.rules_applied.flatten!
+					end
+					@new_original_shape = original_shape
 					new_shapes.each { |shp| remove_shape(shp) }
 					return false
 				end
@@ -184,26 +216,33 @@ module IterativeSG
 			# the rule to not be applied
 			removed_shapes_count = 0
 			new_shapes_count = new_shapes.length
-
+			
+			if mark_rule == true
+				original_shape.rules_applied << rule_id
+				original_shape.rules_applied.flatten!
+				original_shape.rules_applied.uniq!
+			end
+			
+			# see if any new shape is identical to original shape. If so,
+			# remove it
+			remove_original_shape = true
 			new_shapes.each do |ent|			
 				# now find out which shape replaces previous one and mark it
 				# TODO we should define this by the rule itself!
 				if Geometry::identical?(ent, original_shape)
-					ent.rules_applied << rule_id
-					ent.rules_applied << original_shape.rules_applied.clone
-					ent.rules_applied.flatten!
 					# remove shape form list as we do not need to check it again.
 					new_shapes.delete ent
+					remove_shape(ent)
+					@new_original_shape = original_shape
 					removed_shapes_count += 1
+					remove_original_shape = false
 					break
 				end
 			end
 			# In any case we should remove original shape
-			remove_shape(original_shape)
-		
+			remove_shape(original_shape) if remove_original_shape == true
+			
 			# TODO improve search mechanism
-			# TODO return false when nothing is changes = all shapes just replace
-			# some others
 			# also make sure there are no other shapes identical to new ones
 			# created. If there are, replace them and update rules_applied.
 			new_shapes.each do |ent|
@@ -213,27 +252,26 @@ module IterativeSG
 				# remove compared entity, so it is not matched against itself.
 				temp_shapes.delete ent
 				temp_shapes.each do |shp|
+					# if identical entity is found, erase new one
 					if Geometry::identical?(ent, shp)
-						ent.rules_applied << shp.rules_applied.clone
-						ent.rules_applied.flatten!
-						remove_shape(shp)
+						remove_shape(ent)
 						removed_shapes_count += 1
-						# we can skipp all other shapes for this ent
+						# we can skip all other shapes for this ent
 						break
 					end
 				end
 			end
 			
-			# if shapes just replaced existing ones, do not count it as a
-			# rule application
+			# if shapes just replaced existing ones, do
+			# not count it as a rule application
 			if removed_shapes_count == new_shapes_count
 				return false
 			end
 			
-			return @shapes
+			return @solution_shapes
 		end
 		# original_shape = Sketchup.active_model.selection[0]
-		# ISGC::apply_rule('Rule 1', Sketchup.active_model.selection[0])
+		# ISGC::apply_rule(false, 'Rule 1', sel, true, false)
 		
 		########################################################################
 		# Create design based on specified number of rule applications and rules
@@ -242,6 +280,8 @@ module IterativeSG
 		# Accepts:
 		# num_of_applications tells controller how many rules should be applied.
 		# rules tells ISG which rules should be used.
+		# timeout sets how long should the method run (this way we can avoid
+		# generations that take too long to compute).
 		# 
 		# Notes:
 		# 
@@ -253,7 +293,7 @@ module IterativeSG
 			# them when they can not be applied anymore
 			@temp_rules = rules.clone
 			timer = Time.now.to_f
-			timeout = 0
+			time = 0
 			rules_applied = 0
 			until num_of_applications == 0 do
 				# exit generation if there are no more rules which can be applied.
@@ -261,6 +301,7 @@ module IterativeSG
 					puts "Generation finished after #{rules_applied} rules applied."
 					break 
 				end
+				
 				# pick random rule
 				rule_id = @temp_rules[rand(@temp_rules.length)]
 				# find appropriate candidates for specified rule
@@ -274,15 +315,31 @@ module IterativeSG
 
 				# pick random candidate
 				original_shape = candidate_shapes[rand( candidate_shapes.length)]
+				# calculate random reflection (1 or -1)
+				mirror_x = rand(2)
+				mirror_x = -1 if mirror_x == 0
+				mirror_y = rand(2)
+				mirror_y = -1 if mirror_y == 0
 				
-				# check that new shapes are inside boundary
-				new_shapes = Controller::apply_rule(rule_id, original_shape)
+				# now apply the rule
+				new_shapes = Controller::apply_rule(false, rule_id, original_shape, mirror_x, mirror_y)
+				# if new_shapes is false, it means that rule application did not
+				# change the design (all new shapes were identical to some already
+				# exising). We therefore reapply it with inverse mirroring
+				# and set the mark_rule flag, so it will remember that this rule
+				# should not be used on this shape anymore. At the moment this
+				# is OK only for shape rules with 1 mirror axis.
+				# TODO improve for shapes with no mirror axis or with 2 mirror axis!
+				if new_shapes == false
+					new_shapes = Controller::apply_rule(true, rule_id, @new_original_shape,
+						(mirror_x * -1), (mirror_y * -1))
+				end
 				
 				# exit if timeout is reached
-				timeout = (Time.now.to_f - timer)
-				if timeout > 20
+				time = (Time.now.to_f - timer)
+				if time > timeout
 					# round timeout to two decimals
-					timeout = ((timeout*100).round)/100.0
+					time = ((timeout*100).round)/100.0
 					num_of_applications = 0
 				end
 				# do not count it if rule application didn't create any new shapes...

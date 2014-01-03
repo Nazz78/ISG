@@ -16,6 +16,9 @@ module IterativeSG
 	# Create Plugins menu entry for Iterative Shape Grammars methods.
 	############################################################################
 	def IterativeSG::create_menu
+		# remember ui entries
+		@ui_iterations = 120
+		@ui_seconds = 20
 		unless @ISG_menu
 			tool_menu = UI.menu "Plugins"
 			isg_tool_menu = tool_menu.add_submenu("ISG")
@@ -39,12 +42,12 @@ module IterativeSG
 				# remove last comma
 				rules.chop!.chop!
 				# set default text values
-				defaults = [50, rules, 20]
+				defaults = [@ui_iterations, rules, @ui_seconds]
 				
 				input = UI.inputbox prompts, defaults, "Generate Shape Grammar Design"
-				iterations = input[0]
+				@ui_iterations = input[0]
 				# for rules_used see below
-				timeout = input[2]
+				@ui_seconds = input[2]
 				
 				# if no rules are specified, use all rules...
 				rules_used = Array.new
@@ -62,7 +65,7 @@ module IterativeSG
 					return false
 				end
 				
-				Controller::generate_design(iterations, rules_used, timeout)
+				Controller::generate_design(@ui_iterations, rules_used, @ui_seconds)
 			end
 			
 			# add separator ====================================================
