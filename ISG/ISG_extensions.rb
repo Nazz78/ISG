@@ -12,7 +12,7 @@ module IterativeSG
 	# Extension of Sketchup::Group objects which are used as shapes.
 	############################################################################
 	module Group
-		attr_reader :shape_ID, :UID
+		attr_reader :shape_ID, :UID, :points, :position, :trans_array
 		# rules applied specified which rule has already been aplied to the shape
 		attr_accessor :rules_applied
 		########################################################################
@@ -59,7 +59,48 @@ module IterativeSG
 				end
 			end
 
+			# define current position for faster access
+			self.update_shape
+			
 			return @shape_ID, @UID
+		end
+
+		########################################################################
+		# Update object variables which are used for comparing shapes. See notes
+		# below.
+		# 
+		# Accepts:
+		# Nothing.
+		# 
+		# Notes:
+		# This is the list of updated variables:
+		# @position in center of bounding box
+		# @points is a list of all vertex positions
+		# @trans_array is transformation matrix in array
+		# 
+		# Returns:
+		# nil
+		########################################################################
+		def update_shape
+			# define current position for faster access
+			@position = self.bounds.center
+			faces = self.entities.to_a.select { |ent|
+				ent.class == Sketchup::Face }
+			vertices = Array.new
+			faces.each do |face|
+				vertices << face.vertices
+			end
+			vertices.uniq!
+			vertices.flatten!
+			
+			@points = Array.new
+			transformation = self.transformation
+			vertices.each do |vertex|
+				@points << (vertex.position.transform! transformation)
+			end
+			
+			@trans_array = transformation.to_a
+			return nil
 		end
 	end
 	############################################################################

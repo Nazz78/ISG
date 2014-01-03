@@ -159,6 +159,8 @@ module IterativeSG
 			# explode groups at correct position and filter them to shapes
 			exploded_ents = new_group.explode
 			new_shapes = exploded_ents.select {|ent| ent.is_a? Sketchup::Group}
+			# update shape variables
+			new_shapes.each {|ent| ent.update_shape}
 			
 			# now make sure rule application is inside
 			# bounds, if not, erase all and return false
@@ -178,7 +180,7 @@ module IterativeSG
 			# the rule to not be applied
 			removed_shapes_count = 0
 			new_shapes_count = new_shapes.length
-						
+
 			new_shapes.each do |ent|			
 				# now find out which shape replaces previous one and mark it
 				# TODO we should define this by the rule itself!
@@ -227,7 +229,7 @@ module IterativeSG
 			return @shapes
 		end
 		# original_shape = Sketchup.active_model.selection[0]
-		# IterativeSG::Controller::apply_rule('rule_001', Sketchup.active_model.selection[0])
+		# ISGC::apply_rule('Rule 1', Sketchup.active_model.selection[0])
 		
 		########################################################################
 		# Create design based on specified number of rule applications and rules
@@ -277,6 +279,7 @@ module IterativeSG
 				num_of_applications -= 1
 				rules_applied += 1
 			end
+			UI.messagebox "Shape generation done!", MB_OK
 			return true
 		end
 		# IterativeSG::Controller::initialize;   IterativeSG::Controller::generate_design(100)
@@ -696,6 +699,7 @@ module IterativeSG
 				return candidates
 			end
 		end
+		# ISGC::collect_candidate_shapes("Rule 1")
 		
 		########################################################################
 		# Cleanup all rules where there is some entity missing (origin marker,

@@ -56,8 +56,7 @@ module IterativeSG
 		def Geometry::inside_boundary?(entity)
 			# first check if bounds center is outside of the boundary
 			# we can skip rest if center is outside...
-			center = entity.bounds.center
-			result = Geom.point_in_polygon_2D(center, @boundary_points, true)
+			result = Geom.point_in_polygon_2D(entity.position, @boundary_points, true)
 			return false if result == false
 			
 			# if center is inside, do some additional checking by testing each
@@ -105,33 +104,26 @@ module IterativeSG
 		def Geometry::identical?(group_1, group_2)
 			# get local transformation of shape if their ID is the same
 			if group_1.shape_ID == group_2.shape_ID
-				# puts 'test'
-				return true if group_1.transformation.to_a == group_2.transformation.to_a
+				return true if group_1.trans_array == group_2.trans_array
+				# if ID is the same but position is different, shapes do not match
+				return false if group_1.position != group_2.position
 			end
 			
 			# match points
-			group_1_vertices = group_1.entities.to_a.select { |ent|
-				ent.class == Sketchup::Face }[0].vertices
-			group_1_transformation = group_1.transformation
-			group_2_vertices = group_2.entities.to_a.select { |ent|
-				ent.class == Sketchup::Face }[0].vertices
-			group_2_transformation = group_2.transformation
-			
-			group_2_vertices_length = group_2_vertices.length
-			group_1_vertices.each do |vertex_1|
-				pos_1 = vertex_1.position.transform! group_1_transformation
+			group_2_points = group_2.points.clone
+			group_2_vertices_length = group_2_points.length
+			group_1.points.each do |point_1|
 				# find vertex in second group that matches this vertex position
-				group_2_vertices.each do |vertex_2|
-					pos_2 = vertex_2.position.transform! group_2_transformation
-					if  pos_2 == pos_1
-						group_2_vertices.delete vertex_2
+				group_2_points.each do |point_2|
+					if  point_1 == point_2
+						group_2_points.delete point_2
 						# puts 'vertex found'
 						break
 					end
 				end
 				
 				# if vertex was not found, we can skip rest of the routine.
-				if group_2_vertices_length == group_2_vertices.length
+				if group_2_vertices_length == group_2_points.length
 					return false 
 				else
 					group_2_vertices_length -= 1
@@ -139,8 +131,9 @@ module IterativeSG
 			end
 			
 			# if all vertices were deleted, polygons are matching
-			return group_2_vertices.empty?
-		end		
+			return group_2_points.empty?
+		end
+		# IterativeSG::Geometry::identical?(group_1, group_2)
 
 		########################################################################	
 		# PRIVATE METHODS BELOW!
