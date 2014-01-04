@@ -136,6 +136,7 @@ module IterativeSG
 		def Controller::apply_rule(mark_rule, rule_id, original_shape, mirror_x, mirror_y)
 			# get position of original shape
 			original_transformation = original_shape.transformation
+			reflection = 0
 			
 			# calculate mirroring if needed
 			if @rules[rule_id]['mirror_x'] == true or @rules[rule_id]['mirror_y'] == true
@@ -173,16 +174,18 @@ module IterativeSG
 			# now transform the group so that it matches
 			# original shape transformation
 			new_entity = Sketchup.active_model.entities.add_group new_shapes
+			
+			# Once in group, move the shapes to correct location so we have
+			# correct origin when applying transformation! We calculate the
+			# distance only when rule is defined!
+			if @rules[rule_id]['translation'] != nil
+				new_shapes.each do |ent|
+					ent.transform! @rules[rule_id]['translation']
+				end
+			end
+			
+			# once distance is calculated apply transformation
 			new_entity.transformation = original_transformation
-
-			# calculate distance vector from original shape to to its marker
-			marker_position = @rules[rule_id]['origin'].position
-			shape_position = @rules[rule_id]['shape'].position
-			distance_vector = marker_position.vector_to shape_position
-			if distance_vector.length != 0
-				translation = Geom::Transformation.new distance_vector
-				new_entity.transform! translation
-			end	
 			
 			# explode groups at correct position and filter them to shapes
 			exploded_ents = new_entity.explode
@@ -269,7 +272,7 @@ module IterativeSG
 			return @solution_shapes
 		end
 		# original_shape = Sketchup.active_model.selection[0]
-		# ISGC::apply_rule(false, 'Rule 1', sel, true, false)
+		# ISGC::apply_rule(false, 'Rule 1', sel, 1, 1)
 		
 		########################################################################
 		# Create design based on specified number of rule applications and rules
@@ -404,6 +407,26 @@ module IterativeSG
 			@rules[rule_ID]['shape_new'] = shape_new
 			@rules[rule_ID]['mirror_x'] = mirror_x
 			@rules[rule_ID]['mirror_y'] = mirror_y
+			
+			# create temporary group so we can calculate origin
+			temp_grp = Sketchup.active_model.entities.add_group shape_new
+			
+			# calculate distance vector from original shape to to its marker
+			marker1_position = origin.position
+			shape1_position = shape.bounds.min
+			marker2_position = origin_new.position
+			shape2_position = temp_grp.bounds.min
+			distance1_vector = marker1_position.vector_to shape1_position
+			distance2_vector = marker2_position.vector_to shape2_position
+			distance_vector = distance1_vector - distance2_vector
+			if distance_vector != [0,0,0]
+				puts "distance_vector = #{distance_vector}"
+				@rules[rule_ID]['translation'] = Geom::Transformation.new distance_vector.reverse
+			end
+			
+			temp_grp.explode
+			
+			
 			# and we also need to remember it so we can load it at some later time...
 			# but only store it if it doesn't exist yet
 			if @dict_rules[rule_ID] == nil
