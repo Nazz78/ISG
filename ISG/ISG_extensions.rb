@@ -79,20 +79,22 @@ module IterativeSG
 		# @trans_array is transformation matrix in array
 		# 
 		# Returns:
-		# nil
+		# nil, it just updated @position, @points and @trans_array variables.
 		########################################################################
 		def update_shape
 			# define current position for faster access
 			@position = self.bounds.center
-			faces = self.entities.to_a.select { |ent|
-				ent.class == Sketchup::Face }
-			vertices = Array.new
-			faces.each do |face|
-				vertices << face.vertices
-			end
-			vertices.uniq!
-			vertices.flatten!
+			edges = self.entities.to_a { |ent| ent.class == Sketchup::Edge }
 			
+			# set vertices array
+			vertices = Array.new
+			edges.each do |edge|
+				vertices << edge.vertices
+			end
+			vertices.flatten!
+			vertices.uniq!
+			
+			# now calculate each vertex global position
 			@points = Array.new
 			transformation = self.transformation
 			vertices.each do |vertex|
