@@ -11,13 +11,14 @@ module IterativeSG
 	############################################################################
 	# Extension of Sketchup::Group objects which are used as shapes.
 	############################################################################
-	module Group
-		attr_reader :shape_ID, :UID, :points, :position, :trans_array
+	module ComponentInstance
+		attr_reader :shape_ID, :UID, :points, :position, :trans_array,
+		  :component_name
 		# rules applied specified which rule has already been aplied to the shape
 		attr_accessor :rules_applied
 		########################################################################
-		# Initialize Sketchup::Group object so that ISG can work with it. For
-		# now we add uniqe ID so shapes can be easiliy identified.
+		# Initialize Sketchup::ComponentInstance object so that ISG can work
+		# with it. For now we add uniqe ID so shapes can be easiliy identified.
 		# 
 		# Accepts:
 		# shape_ID which is identifier among similar shapes.
@@ -25,7 +26,7 @@ module IterativeSG
 		# of the shape.
 		# 
 		# Notes:
-		# Each Group has a ID which is persistent when the Group is copied.
+		# Each Component has a ID which is persistent when it is copied.
 		# 
 		# Returns:
 		# Object's ID and UID.
@@ -84,7 +85,7 @@ module IterativeSG
 		def update_shape
 			# define current position for faster access
 			@position = self.bounds.center
-			edges = self.entities.to_a { |ent| ent.class == Sketchup::Edge }
+			edges = self.definition.entities.to_a { |ent| ent.class == Sketchup::Edge }
 			
 			# set vertices array
 			vertices = Array.new
@@ -101,15 +102,11 @@ module IterativeSG
 				@points << (vertex.position.transform! transformation)
 			end
 			
+			@component_name = self.definition.name
 			@trans_array = transformation.to_a
 			return nil
 		end
-	end
-	############################################################################
-	# Extension of Sketchup::Group objects, which are used as origin markers.
-	############################################################################
-	module ComponentInstance
-		attr_reader :UID
+
 		########################################################################
 		# Initialize Sketchup::ComponentInstance object so that ISG can work
 		# with it. For  now we add uniqe ID so shapes can be easiliy identified.
@@ -141,7 +138,9 @@ module IterativeSG
 					@UID = current_uid
 				end
 			end
-
+			# define current position for faster access
+			self.update_shape
+			
 			return @UID
 		end
 	end

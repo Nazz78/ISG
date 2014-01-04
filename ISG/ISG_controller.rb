@@ -57,14 +57,14 @@ module IterativeSG
 		########################################################################
 		def Controller::initialize(boundary_component = Sketchup.active_model.selection[0])
 			if boundary_component.is_a? Sketchup::ComponentInstance and
-				  boundary_component.name == 'ISG Boundary'
+				  boundary_component.definition.name.include? 'Boundary'
 				# do nothing, all seems OK
 			# if boundary component is not selected, try to guess it
 			else
 				components = Sketchup.active_model.entities.select { |ent|
 					ent.is_a? Sketchup::ComponentInstance }
 				boundaries = components.select { |ent|
-					ent.name == 'ISG Boundary' }
+					ent.definition.name.include? 'Boundary' }
 				if boundaries.length > 1
 					UI.messagebox "Please select boundary Component!", MB_OK
 					return false
@@ -86,6 +86,7 @@ module IterativeSG
 			@dict_shapes = model.attribute_dictionary 'ISG_shapes', true
 			@dict_rules = model.attribute_dictionary 'ISG_rules', true
 			# populate shape_IDs
+			# TODO shape_IDs are not needed anymore since we use Components...
 			@shape_IDs = [1]
 			# create shape_IDs
 			@UIDs = Array.new
@@ -96,8 +97,11 @@ module IterativeSG
 			@rules = Hash.new
 			# entities by UID enable us to quickly call entity by its UID
 			@entities_by_UID = Hash.new
+			# Setup boundary and Geometry module to work with it
+			@boundary_component = boundary_component
+			Geometry.initialize(boundary_component)
 			# now we can initialize all existing shapes and markers
-			initialize_existing_shapes	
+			initialize_existing_shapes
 			initialize_origin_markers
 			
 			# once shapes and markers are initialized, we should cleanup rules
@@ -105,10 +109,6 @@ module IterativeSG
 			
 			# we can now initialize existing rules
 			initialize_existing_rules
-			
-			# Setup boundary and Geometry module to work with it
-			@boundary_component = boundary_component
-			Geometry.initialize(boundary_component)
 		
 			return true
 		end
@@ -164,33 +164,33 @@ module IterativeSG
 			
 			# copy shapes of the rule and initialize them
 			new_shapes = Array.new
-			@rules[rule_id]['shape_new'].each do |group|
+			@rules[rule_id]['shape_new'].each do |entity|
 				# when shape is copied via Ruby, it doesn't copy the dictionary
-				new_group = group.copy
-				dict = new_group.attribute_dictionary 'IterativeSG', true
-				dict.set_attribute 'IterativeSG', 'shape_ID', group.shape_ID
-				new_shapes << new_group
-				initialize_shape(new_group)
-				new_group.layer = @solution_layer
+				new_entity = entity.copy
+				dict = new_entity.attribute_dictionary 'IterativeSG', true
+				dict.set_attribute 'IterativeSG', 'shape_ID', entity.shape_ID
+				new_shapes << new_entity
+				initialize_shape(new_entity)
+				new_entity.layer = @solution_layer
 			end
 
 			# now transform the group so that it matches
 			# original shape transformation
-			new_group = Sketchup.active_model.entities.add_group new_shapes
-			new_group.transformation = original_transformation
+			new_entity = Sketchup.active_model.entities.add_group new_shapes
+			new_entity.transformation = original_transformation
 
 			# calculate distance vector from original shape to to its marker
-			marker_position = @rules[rule_id]['origin'].bounds.center
-			shape_position = @rules[rule_id]['shape'].bounds.center
+			marker_position = @rules[rule_id]['origin'].position
+			shape_position = @rules[rule_id]['shape'].position
 			distance_vector = marker_position.vector_to shape_position
 			if distance_vector.length != 0
 				translation = Geom::Transformation.new distance_vector
-				new_group.transform! translation
+				new_entity.transform! translation
 			end	
 			
 			# explode groups at correct position and filter them to shapes
-			exploded_ents = new_group.explode
-			new_shapes = exploded_ents.select {|ent| ent.is_a? Sketchup::Group}
+			exploded_ents = new_entity.explode
+			new_shapes = exploded_ents.select {|ent| ent.is_a? Sketchup::ComponentInstance}
 			new_shapes.each do |ent|
 				ent.update_shape
 				# also update list of @solution_shapes
@@ -200,7 +200,7 @@ module IterativeSG
 			# now make sure rule application is inside
 			# bounds, if not, erase all and return false
 			new_shapes.each do |shape|
-				if Geometry::inside_boundary?(shape) == false
+				if Geometry::inside_boundary?(shape.position, shape.points) == false
 					# if rule is outside boundary, base shape shuld be marked
 					# so that the rule is not applied anymore
 					if mark_rule == true
@@ -384,7 +384,6 @@ module IterativeSG
 				origin_new = @temp_origin_new, shape_new = @temp_shape_new)
 			# setup origin of base shape
 			origin_uid = origin.UID
-			
 			# setup base shape. If it is alread setup, it will just return its UID
 			shape_uid = shape.UID
 			# shape.set_attribute rule_ID, 'shape', shape_uid
@@ -438,17 +437,17 @@ module IterativeSG
 		########################################################################
 		def Controller::pick_original_shape(selection = Sketchup.active_model.selection.to_a)
 			if selection.length != 2
-				UI.messagebox "Please select one origin marker (Component) and one shape (Group).", MB_OK
+				UI.messagebox "Please select one origin marker and one shape. Both should be SketchUp components.", MB_OK
 				return false
 			end
-			marker = selection.select {|ent| ent.name == 'ISG_Origin'}
-			shape = selection.select {|ent| ent.is_a? Sketchup::Group}
+			marker = selection.select {|ent| ent.definition.name == 'Origin Marker'}
+			shape = selection.select {|ent| ent.definition.name.include? 'Shape'}
 			
 			# If all is OK, initialize marker
 			if marker.length == 1
 				initialize_marker(marker[0])
 			else
-				UI.messagebox "Please make sure your origin marker is named correctly (ISG_Origin).", MB_OK
+				UI.messagebox "Please make sure you have selected correct marker (Component name = Origin Marker).", MB_OK
 				return false
 			end
 			
@@ -456,7 +455,7 @@ module IterativeSG
 			if shape.length == 1
 				initialize_shape(shape[0])
 			else
-				UI.messagebox "Please make sure you have only one Group selected as a basic shape.", MB_OK
+				UI.messagebox "Please make sure you have only one Component selected as a basic shape.", MB_OK
 			end
 			
 			@temp_origin = marker[0]
@@ -484,9 +483,9 @@ module IterativeSG
 		########################################################################
 		def Controller::pick_new_shape(selection = Sketchup.active_model.selection.to_a)
 			# exit if marker is not picked up correctly
-			marker = selection.select {|ent| ent.name == 'ISG_Origin'}
+			marker = selection.select {|ent| ent.definition.name == 'Origin Marker'}
 			if marker.length != 1
-				UI.messagebox "Please make sure your origin marker is named correctly (ISG_Origin).", MB_OK
+				UI.messagebox "Please make sure you have selected correct marker (Component name = Origin Marker).", MB_OK
 				return false
 			else
 				initialize_marker(marker[0])
@@ -494,10 +493,10 @@ module IterativeSG
 			
 			
 			# filter shapes to groups
-			shapes = selection.select {|ent| ent.is_a? Sketchup::Group}
+			shapes = selection.select {|ent| ent.definition.name.include? 'Shape'}
 			# TODO also make sure original shape is not among picked shapes...
 			if shapes.length < 1
-				UI.messagebox "Please make sure you have at least one Group selected as a derived shape.", MB_OK
+				UI.messagebox "Please make sure you have at least one SketchUp component selected as a derived shape.", MB_OK
 				return false
 			else
 				shapes.each do |shape|
@@ -542,6 +541,11 @@ module IterativeSG
 			# setup model, cleanup all elements
 			model = Sketchup.active_model
 			entities = model.entities
+			# unlock entities prior to erasing
+			entities.each do |ent|
+				next unless ent.is_a? Sketchup::ComponentInstance
+				ent.locked = false if ent.locked? == true
+			end
 			entities.erase_entities entities.to_a
 			
 			rubyScriptsPath = File.expand_path(File.dirname(__FILE__))
@@ -569,7 +573,8 @@ module IterativeSG
 			model.shadow_info["UseSunForAllShading"] = true
 			
 			# we know template model rule so create it if needed...
-			rule = ["32fmy6bp7r3t3", "1khp8m4cj73oq", "mlfhnbw339ng1", ["507h4mehqotjj", "3uz6rwth61cx3"], true, true]
+			
+			rule = ["ewi05qc058p7i", "2pvcdxzxh9jaz", "mlfhnbw339ng1", ["1cf3rnstfmfpl", "h2nb5gwfwiihl"], true, true]
 			dict_rules = model.attribute_dictionary 'ISG_rules', true
 			dict_rules['Rule 1'] = rule
 			
@@ -598,31 +603,37 @@ module IterativeSG
 		# Returns:
 		# UID of new shape
 		########################################################################
-		def Controller::initialize_shape(group)
-			unless group.is_a? Sketchup::Group
-				UI.messagebox "Please select shape Group!", MB_OK
+		def Controller::initialize_shape(entity)
+			unless entity.is_a? Sketchup::ComponentInstance
+				UI.messagebox "Please select shape Component!", MB_OK
 				return false
 			end
 			# if group is not yet initialized
-			unless group.respond_to? :initialize_ISG_shape
+			unless entity.respond_to? :initialize_ISG_shape
 				# extend it with ISG methods
-				group.send(:extend, IterativeSG::Group)
+				entity.send(:extend, IterativeSG::ComponentInstance)
 				# initialize the shape
 				# TODO improve shape_ID mechanism.
 				uid = generate_UID
-				shp_id, shp_uid = group.initialize_ISG_shape(@shape_IDs.last + 1, uid)
+				shp_id, shp_uid = entity.initialize_ISG_shape(@shape_IDs.last + 1, uid)
 			end
-			shp_id = group.shape_ID unless shp_id
-			shp_uid = group.UID unless shp_uid
-			group.name = 'ISG_Shape' unless group.name == 'ISG_Shape'
+			shp_id = entity.shape_ID unless shp_id
+			shp_uid = entity.UID unless shp_uid
+			entity.name = 'ISG_Shape' unless entity.name == 'ISG_Shape'
+						
+			# maybe user forgot to put shapes inside boundary
+			entity.update_shape
+			if Geometry::inside_boundary?(entity.position, entity.points) == true
+				entity.layer = @solution_layer
+			end
 
 			@shape_IDs << shp_id
 			@shape_IDs.sort!.uniq!
 			@UIDs << shp_uid
 			@dict_shapes['shape_IDs'] = @shape_IDs
-			@entities_by_UID[shp_uid] = group
+			@entities_by_UID[shp_uid] = entity
 			# and add it to list of shapes
-			@shapes << group
+			@shapes << entity
 			return shp_uid
 		end
 		
@@ -638,12 +649,12 @@ module IterativeSG
 		# Returns:
 		# True once all is cleaned up.
 		########################################################################
-		def Controller::remove_shape(group)
-			@UIDs.delete group.UID
-			@entities_by_UID.delete(group.UID)
-			@shapes.delete group
-			@solution_shapes.delete group
-			Sketchup.active_model.entities.erase_entities group
+		def Controller::remove_shape(component_instance)
+			@UIDs.delete component_instance.UID
+			@entities_by_UID.delete(component_instance.UID)
+			@shapes.delete component_instance
+			@solution_shapes.delete component_instance
+			Sketchup.active_model.entities.erase_entities component_instance
 			return true
 		end
 		
@@ -695,14 +706,15 @@ module IterativeSG
 		def Controller::initialize_existing_shapes
 			model = Sketchup.active_model
 			initialized_shapes = Array.new
-			all_groups = model.entities.to_a.select {|ent| ent.is_a? Sketchup::Group}
-			all_groups.each do |group|
-				attrdict = group.attribute_dictionary 'IterativeSG'
+			all_components = model.entities.to_a.select {|ent| ent.is_a? Sketchup::ComponentInstance}
+			all_shapes = all_components.select {|ent| ent.definition.name.include? 'Shape'}
+			all_shapes.each do |component|
+				attrdict = component.attribute_dictionary 'IterativeSG'
 				next if attrdict == nil
-				initialize_shape(group)
-				initialized_shapes << group
+				initialize_shape(component)
+				initialized_shapes << component
 				# also add group to @solution_shapes
-				@solution_shapes << group if group.layer == @solution_layer
+				@solution_shapes << component if component.layer == @solution_layer
 			end
 			return initialized_shapes
 		end
@@ -722,7 +734,7 @@ module IterativeSG
 			model = Sketchup.active_model
 			initialized_markers = Array.new
 			all_components = model.entities.to_a.select {|ent| ent.is_a? Sketchup::ComponentInstance}
-			all_markers = all_components.select {|ent| ent.name == 'ISG_Origin'}
+			all_markers = all_components.select {|ent| ent.definition.name.include? 'Marker'}
 			all_markers.each do |obj|
 				attrdict = obj.attribute_dictionary 'IterativeSG'
 				next if attrdict == nil
@@ -837,7 +849,7 @@ module IterativeSG
 				return candidates
 			end
 		end
-		# ISGC::collect_candidate_shapes("Rule 1", 1, 1)
+		# ISGC::collect_candidate_shapes("Rule 1")
 		
 		########################################################################
 		# Cleanup all rules where there is some entity missing (origin marker,

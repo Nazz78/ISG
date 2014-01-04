@@ -47,45 +47,28 @@ module IterativeSG
 		# works for convex hull boundaries.
 		# 
 		# Accepts:
-		# Sketchup::Face or Sketchup::Group object which is being checked.
+		# center_point is shape's bounding box center
+		# shape_points is array of shape points.
 		# 
 		# Returns:
 		# True if face is completely inside the specified boundary,
 		# False otherwise.
 		########################################################################
-		def Geometry::inside_boundary?(entity)
+		def Geometry::inside_boundary?(center, shape_points)
 			# first check if bounds center is outside of the boundary
 			# we can skip rest if center is outside...
-			result = Geom.point_in_polygon_2D(entity.position, @boundary_points, true)
+			result = Geom.point_in_polygon_2D(center, @boundary_points, true)
 			return false if result == false
 			
-			# if center is inside, do some additional checking by testing each
-			# vertex
-			points = Array.new
-			if entity.class == Sketchup::Group
-				trans = entity.transformation
-				faces = entity.entities.select {|ent| ent.is_a? Sketchup::Face}
-				faces.each do |face|
-					vertices = face.vertices
-					vertices.each do |vertex|
-						points << (vertex.position.transform! trans)
-					end
-				end
-			elsif entity.class == Sketchup::Face
-				# collect all vertices positions
-				vertices = entity.vertices
-				vertices.each {|vertex| points << vertex.position}
-			end	
-			
 			# check if all points lie inside specified boundary.
-			points.each do |pt|
+			shape_points.each do |pt|
 				result = Geom.point_in_polygon_2D(pt, @boundary_points, true)
 				return false if result == false
 			end
 			return true
 		end
 		# ent = Sketchup.active_model.selection[0]
-		# IterativeSG::Geometry::inside_boundary?(ent)
+		# IterativeSG::Geometry::inside_boundary?(sel.position, sel.points)
 		
 		########################################################################
 		# Return only the specified number of closest shapes.
@@ -152,21 +135,21 @@ module IterativeSG
 		# Returns:
 		# True if two groups are identical, False otherwise.
 		########################################################################
-		def Geometry::identical?(group_1, group_2)
+		def Geometry::identical?(entity_1, entity_2)
 			# most of the shapes do not match, so skip all other if their position
 			# is not the same.
 			# TODO maybe we should improve this?
-			return false if group_1.position != group_2.position
+			return false if entity_1.position != entity_2.position
 
 			# get local transformation of shape if their ID is the same
-			if group_1.shape_ID == group_2.shape_ID
-				return true if group_1.trans_array == group_2.trans_array
+			if entity_1.shape_ID == entity_2.shape_ID
+				return true if entity_1.trans_array == entity_2.trans_array
 			end
 			
 			# match points
-			group_2_points = group_2.points.clone
+			group_2_points = entity_2.points.clone
 			group_2_vertices_length = group_2_points.length
-			group_1.points.each do |point_1|
+			entity_1.points.each do |point_1|
 				# find vertex in second group that matches this vertex position
 				group_2_points.each do |point_2|
 					if  point_1 == point_2
