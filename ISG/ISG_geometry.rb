@@ -142,7 +142,7 @@ module IterativeSG
 			return false if entity_1.position != entity_2.position
 
 			# get local transformation of shape if their ID is the same
-			if entity_1.shape_ID == entity_2.shape_ID
+			if entity_1.component_name == entity_2.component_name
 				return true if entity_1.trans_array == entity_2.trans_array
 			end
 			

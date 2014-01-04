@@ -34,7 +34,7 @@ module IterativeSG
 		class << self
 			attr_reader :rules_layer, :solution_layer, :initial_shape
 			attr_reader :rules, :boundary_component, :solution_shapes
-			attr_reader :shapes, :shape_IDs, :UIDs, :entities_by_UID
+			attr_reader :shapes, :UIDs, :entities_by_UID
 		end
 
 		########################################################################
@@ -85,10 +85,7 @@ module IterativeSG
 			# create dictionary to store values that need to be saved...
 			@dict_shapes = model.attribute_dictionary 'ISG_shapes', true
 			@dict_rules = model.attribute_dictionary 'ISG_rules', true
-			# populate shape_IDs
-			# TODO shape_IDs are not needed anymore since we use Components...
-			@shape_IDs = [1]
-			# create shape_IDs
+			# create @UIDs so each object can be found after reopening model...
 			@UIDs = Array.new
 			# Initialize existing shapes
 			@shapes = Array.new
@@ -168,7 +165,6 @@ module IterativeSG
 				# when shape is copied via Ruby, it doesn't copy the dictionary
 				new_entity = entity.copy
 				dict = new_entity.attribute_dictionary 'IterativeSG', true
-				dict.set_attribute 'IterativeSG', 'shape_ID', entity.shape_ID
 				new_shapes << new_entity
 				initialize_shape(new_entity)
 				new_entity.layer = @solution_layer
@@ -613,11 +609,9 @@ module IterativeSG
 				# extend it with ISG methods
 				entity.send(:extend, IterativeSG::ComponentInstance)
 				# initialize the shape
-				# TODO improve shape_ID mechanism.
 				uid = generate_UID
-				shp_id, shp_uid = entity.initialize_ISG_shape(@shape_IDs.last + 1, uid)
+				shp_uid = entity.initialize_ISG_shape(uid)
 			end
-			shp_id = entity.shape_ID unless shp_id
 			shp_uid = entity.UID unless shp_uid
 			entity.name = 'ISG_Shape' unless entity.name == 'ISG_Shape'
 						
@@ -627,10 +621,7 @@ module IterativeSG
 				entity.layer = @solution_layer
 			end
 
-			@shape_IDs << shp_id
-			@shape_IDs.sort!.uniq!
 			@UIDs << shp_uid
-			@dict_shapes['shape_IDs'] = @shape_IDs
 			@entities_by_UID[shp_uid] = entity
 			# and add it to list of shapes
 			@shapes << entity
@@ -681,7 +672,6 @@ module IterativeSG
 				# extend it with ISG methods
 				component_instance.send(:extend, IterativeSG::ComponentInstance)
 				# and initialize it
-				# TODO improve shape_ID mechanism.
 				uid = generate_UID
 				uid = component_instance.initialize_ISG_marker(uid)
 			end

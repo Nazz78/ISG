@@ -12,7 +12,7 @@ module IterativeSG
 	# Extension of Sketchup::Group objects which are used as shapes.
 	############################################################################
 	module ComponentInstance
-		attr_reader :shape_ID, :UID, :points, :position, :trans_array,
+		attr_reader :UID, :points, :position, :trans_array,
 		  :component_name
 		# rules applied specified which rule has already been aplied to the shape
 		attr_accessor :rules_applied
@@ -21,8 +21,7 @@ module IterativeSG
 		# with it. For now we add uniqe ID so shapes can be easiliy identified.
 		# 
 		# Accepts:
-		# shape_ID which is identifier among similar shapes.
-		# UID which is uniqe identifier, so we can receive specific instance
+		# shape_uid which is uniqe identifier, so we can receive specific instance
 		# of the shape.
 		# 
 		# Notes:
@@ -31,19 +30,10 @@ module IterativeSG
 		# Returns:
 		# Object's ID and UID.
 		########################################################################
-		def initialize_ISG_shape(shape_id, shape_uid)
+		def initialize_ISG_shape(shape_uid)
 			# create dictionary if it doesn't exist
 			@dict = self.attribute_dictionary 'IterativeSG', true
 			@rules_applied = Array.new
-			
-			# if dictionary doesn't exist, add received ID
-			if (@dict.get_attribute 'IterativeSG', 'shape_ID') == nil
-				@shape_ID = shape_id
-				@dict.set_attribute 'IterativeSG', 'shape_ID', shape_id
-				#
-			else
-				@shape_ID = @dict.get_attribute 'IterativeSG', 'shape_ID'
-			end
 			
 			# UIDs are a bit different - when shape is copied, they should
 			# not remain the same. So make sure to change them even if they exist.
@@ -60,10 +50,11 @@ module IterativeSG
 				end
 			end
 
+			@component_name = self.definition.name
 			# define current position for faster access
 			self.update_shape
 			
-			return @shape_ID, @UID
+			return @UID
 		end
 
 		########################################################################
@@ -102,7 +93,6 @@ module IterativeSG
 				@points << (vertex.position.transform! transformation)
 			end
 			
-			@component_name = self.definition.name
 			@trans_array = transformation.to_a
 			return nil
 		end
