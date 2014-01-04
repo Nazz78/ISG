@@ -56,7 +56,8 @@ module IterativeSG
 		# True if initialization is sucesfull, False otherwise.
 		########################################################################
 		def Controller::initialize(boundary_component = Sketchup.active_model.selection[0])
-			if boundary_component.is_a? Sketchup::ComponentInstance
+			if boundary_component.is_a? Sketchup::ComponentInstance and
+				  boundary_component.name == 'ISG Boundary'
 				# do nothing, all seems OK
 			# if boundary component is not selected, try to guess it
 			else
@@ -78,8 +79,9 @@ module IterativeSG
 			# setup layers
 			model = Sketchup.active_model
 			layers = model.layers
-			@rules_layer = layers.add "SG Rules Layer"
-			@solution_layer = layers.add "SG Solution Layer"
+			@rules_layer = layers.add "ISG Rules"
+			@solution_layer = layers.add "ISG Solution"
+			@boundary_layer = layers.add "ISG Boundary"
 			# create dictionary to store values that need to be saved...
 			@dict_shapes = model.attribute_dictionary 'ISG_shapes', true
 			@dict_rules = model.attribute_dictionary 'ISG_rules', true
@@ -330,7 +332,7 @@ module IterativeSG
 				# should not be used on this shape anymore. At the moment this
 				# is OK only for shape rules with 1 mirror axis.
 				# TODO improve for shapes with no mirror axis or with 2 mirror axis!
-				if new_shapes == false
+				if new_shapes == false and @new_original_shape != nil
 					new_shapes = Controller::apply_rule(true, rule_id, @new_original_shape,
 						(mirror_x * -1), (mirror_y * -1))
 				end
@@ -524,6 +526,59 @@ module IterativeSG
 			number = @rules.keys.length + 1
 			return "Rule #{number}"
 		end
+		
+		########################################################################
+		# Prepares empty SketchUp model for work with ISG.
+		# 
+		# Accepts:
+		# initialize_rules specifies if example rule should be initialized or not.
+		# 
+		# Notes:
+		# 
+		# Returns:
+		# nil
+		########################################################################
+		def Controller::prepare_model
+			# setup model, cleanup all elements
+			model = Sketchup.active_model
+			entities = model.entities
+			entities.erase_entities entities.to_a
+			
+			rubyScriptsPath = File.expand_path(File.dirname(__FILE__))
+			isg_lib_path = File.join(rubyScriptsPath, 'ISG_lib')
+			
+			style_file = File.join(isg_lib_path, 'ISG.style')		
+			status = model.styles.add_style style_file, true
+			
+			# set units to inches
+			model.options["UnitsOptions"]["LengthUnit"] = 0
+			
+			# load template file
+			template_file = File.join(isg_lib_path, "ISG_Template.skp")
+			template = model.definitions.load template_file
+			# place it in the model
+			model.entities.add_instance template, [0,0,0]
+			template_instance = template.instances
+			
+			# and explode it
+			template_instance[0].explode
+			model.definitions.purge_unused
+			
+			# view it properly
+			model.active_view.camera.set( [-160,-300,730], [150,390,-230], [0,0,1])
+			model.shadow_info["UseSunForAllShading"] = true
+			
+			# we know template model rule so create it if needed...
+			rule = ["32fmy6bp7r3t3", "1khp8m4cj73oq", "mlfhnbw339ng1", ["507h4mehqotjj", "3uz6rwth61cx3"], true, true]
+			dict_rules = model.attribute_dictionary 'ISG_rules', true
+			dict_rules['Rule 1'] = rule
+			
+			# add layers
+			self.initialize
+			
+			return nil
+		end
+		# ISGC::prepare_model
 		
 		########################################################################	
 		# PRIVATE METHODS BELOW!

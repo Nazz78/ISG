@@ -22,8 +22,10 @@ module IterativeSG
 		unless @ISG_menu
 			tool_menu = UI.menu "Plugins"
 			isg_tool_menu = tool_menu.add_submenu("ISG")
-			isg_tool_menu.add_item('Show ISG Window') do
-				UI_Window::initialize
+
+			# Open template with all layers, markers, boundaries, ... defined.
+			isg_tool_menu.add_item('Open ISG template') do
+				ISGC::prepare_model
 			end
 			
 			# add separator ====================================================
@@ -37,6 +39,10 @@ module IterativeSG
 				Controller::initialize(Sketchup.active_model.selection[0])
 				prompts = ["Number of rule applicaitons: ", "Rules applied: ","Set timeout timer (in seconds): "]
 				controller_rules = Controller.rules.keys
+				if controller_rules.empty?
+					UI.messagebox "No rules exist in current model. Please define them prior to running ISG.", MB_OK 
+					return false
+				end
 				rules = String.new
 				controller_rules.each { |name| rules += "#{name}, "}
 				# remove last comma
@@ -93,6 +99,12 @@ module IterativeSG
 					mirror_y = (input[2] == 'true' or input[2] == 'True' or input[2].to_s == '1')
 					Controller::define_rule(input[0], mirror_x, mirror_y)
 				end
+			end
+			
+			# add separator ====================================================
+			isg_tool_menu.add_separator
+			isg_tool_menu.add_item('Show ISG Window') do
+				UI_Window::initialize
 			end
 			@ISG_menu = tool_menu
 		end
