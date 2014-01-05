@@ -14,6 +14,7 @@ rubyScriptsPath = File.expand_path(File.dirname(__FILE__))
 Sketchup.load(File.join(rubyScriptsPath, 'ISG_geometry'))
 Sketchup.load(File.join(rubyScriptsPath, 'ISG_extensions'))
 Sketchup.load(File.join(rubyScriptsPath, 'ISG_user_interface'))
+Sketchup.load(File.join(rubyScriptsPath, 'ISG_rules'))
 # Load also SKUI for GUI
 Sketchup.load(File.join(rubyScriptsPath, 'SKUI', 'core.rb'))
 
@@ -33,8 +34,9 @@ module IterativeSG
 		# Create Class level accessors
 		class << self
 			attr_reader :rules_layer, :solution_layer, :initial_shape
-			attr_reader :rules, :boundary_component, :solution_shapes
-			attr_reader :shapes, :UIDs, :entities_by_UID
+			attr_reader :rules, :boundary_component, :dict_rules
+			attr_reader :shapes, :UIDs, :entities_by_UID, :rule_types
+			attr_accessor :temp_original_shape, :solution_shapes
 		end
 
 		########################################################################
@@ -92,6 +94,8 @@ module IterativeSG
 			@solution_shapes = Array.new
 			# hash of rules
 			@rules = Hash.new
+			# TODO add all rule types automatically...
+			@rule_types = ['RuleReplaceOneShape']
 			# entities by UID enable us to quickly call entity by its UID
 			@entities_by_UID = Hash.new
 			# Setup boundary and Geometry module to work with it
@@ -106,173 +110,9 @@ module IterativeSG
 			
 			# we can now initialize existing rules
 			initialize_existing_rules
-		
 			return true
 		end
 		# IterativeSG::Controller::initialize
-		
-		########################################################################
-		# Apply specified rule to speficied shape.
-		# 
-		# Accepts:
-		# mark_rule is a flag to tell if original shape should be marked with
-		# the rule or not. If true the shape will receive rule_id and will thus
-		# not be found by collect_candidate_shapes method for that specific rule.
-		# rule id defines the rule which will be applied
-		# original_shape is the actual shape to which rule will be applied. This
-		# shape will then be substituted (erased) with those defined by the rule.
-		# mirror_x and mirror_y can be either 1 or -1. 1 means no reflection, -1
-		# means reflection in specified direction.
-		# 
-		# Notes:
-		# Component that represents shape boundary should only contain one face
-		# which can be convex.
-		# 
-		# Returns:
-		# New shapes which are result of rule application or false when rule
-		# application does not change the design (all new shapes are identical
-		# to already existent ones).
-		########################################################################
-		def Controller::apply_rule(mark_rule, rule_id, original_shape, mirror_x, mirror_y)
-			# get position of original shape
-			original_transformation = original_shape.transformation
-			reflection = 0
-			
-			# calculate mirroring if needed
-			if @rules[rule_id]['mirror_x'] == true or @rules[rule_id]['mirror_y'] == true
-				# if original_shape is already mirrored, we need to recalculate
-				# scaling transformation to adapt it
-				if original_transformation.xaxis.x == -1
-					mirror_x = mirror_x * -1
-				end
-				if original_transformation.yaxis.y == -1
-					mirror_y = mirror_y * -1
-				end
-				# apply mirroring if needed
-				unless mirror_x == 1 and mirror_y == 1
-					# let's apply the transformation!
-					reflection = Geom::Transformation.scaling original_shape.position, mirror_x, mirror_y, 1
-					original_shape.transform! reflection
-				end
-			end
-			
-			# now get proper transformation
-			original_transformation = original_shape.transformation
-			@new_original_shape = nil
-			
-			# copy shapes of the rule and initialize them
-			new_shapes = Array.new
-			@rules[rule_id]['shape_new'].each do |entity|
-				# when shape is copied via Ruby, it doesn't copy the dictionary
-				new_entity = entity.copy
-				dict = new_entity.attribute_dictionary 'IterativeSG', true
-				new_shapes << new_entity
-				initialize_shape(new_entity)
-				new_entity.layer = @solution_layer
-			end
-
-			# now transform the group so that it matches
-			# original shape transformation
-			new_entity = Sketchup.active_model.entities.add_group new_shapes
-			
-			# Once in group, move the shapes to correct location so we have
-			# correct origin when applying transformation! We calculate the
-			# distance only when rule is defined!
-			if @rules[rule_id]['translation'] != nil
-				new_shapes.each do |ent|
-					ent.transform! @rules[rule_id]['translation']
-				end
-			end
-			
-			# once distance is calculated apply transformation
-			new_entity.transformation = original_transformation
-			
-			# explode groups at correct position and filter them to shapes
-			exploded_ents = new_entity.explode
-			new_shapes = exploded_ents.select {|ent| ent.is_a? Sketchup::ComponentInstance}
-			new_shapes.each do |ent|
-				ent.update_shape
-				# also update list of @solution_shapes
-				@solution_shapes << ent
-			end
-			
-			# now make sure rule application is inside
-			# bounds, if not, erase all and return false
-			new_shapes.each do |shape|
-				if Geometry::inside_boundary?(shape.position, shape.points) == false
-					# if rule is outside boundary, base shape shuld be marked
-					# so that the rule is not applied anymore
-					if mark_rule == true
-						original_shape.rules_applied << rule_id
-						original_shape.rules_applied.flatten!
-					end
-					@new_original_shape = original_shape
-					new_shapes.each { |shp| remove_shape(shp) }
-					return false
-				end
-			end
-			
-			# count removed shapes. If the number of removed shapes is identical
-			# to the number of new shapes, we know nothing is changed - consider
-			# the rule to not be applied
-			removed_shapes_count = 0
-			new_shapes_count = new_shapes.length
-			
-			if mark_rule == true
-				original_shape.rules_applied << rule_id
-				original_shape.rules_applied.flatten!
-				original_shape.rules_applied.uniq!
-			end
-			
-			# see if any new shape is identical to original shape. If so,
-			# remove it
-			remove_original_shape = true
-			new_shapes.each do |ent|			
-				# now find out which shape replaces previous one and mark it
-				# TODO we should define this by the rule itself!
-				if Geometry::identical?(ent, original_shape)
-					# remove shape form list as we do not need to check it again.
-					new_shapes.delete ent
-					remove_shape(ent)
-					@new_original_shape = original_shape
-					removed_shapes_count += 1
-					remove_original_shape = false
-					break
-				end
-			end
-			# In any case we should remove original shape
-			remove_shape(original_shape) if remove_original_shape == true
-			
-			# TODO improve search mechanism
-			# also make sure there are no other shapes identical to new ones
-			# created. If there are, replace them and update rules_applied.
-			new_shapes.each do |ent|
-				# remove entity from the search using clone, otherwise it is 
-				#just a pointer and shape gets removed from @shapes list.
-				temp_shapes = @solution_shapes.clone
-				# remove compared entity, so it is not matched against itself.
-				temp_shapes.delete ent
-				temp_shapes.each do |shp|
-					# if identical entity is found, erase new one
-					if Geometry::identical?(ent, shp)
-						remove_shape(ent)
-						removed_shapes_count += 1
-						# we can skip all other shapes for this ent
-						break
-					end
-				end
-			end
-			
-			# if shapes just replaced existing ones, do
-			# not count it as a rule application
-			if removed_shapes_count == new_shapes_count
-				return false
-			end
-			
-			return @solution_shapes
-		end
-		# original_shape = Sketchup.active_model.selection[0]
-		# ISGC::apply_rule(false, 'Rule 1', sel, 1, 1)
 		
 		########################################################################
 		# Create design based on specified number of rule applications and rules
@@ -316,7 +156,7 @@ module IterativeSG
 				end
 
 				# pick random candidate
-				original_shape = candidate_shapes[rand( candidate_shapes.length)]
+				original_shape = candidate_shapes[rand(candidate_shapes.length)]
 				# calculate random reflection (1 or -1)
 				mirror_x = rand(2)
 				mirror_x = -1 if mirror_x == 0
@@ -324,7 +164,8 @@ module IterativeSG
 				mirror_y = -1 if mirror_y == 0
 				
 				# now apply the rule
-				new_shapes = Controller::apply_rule(false, rule_id, original_shape, mirror_x, mirror_y)
+				new_shapes = @rules[rule_id].send(:apply_rule, false,
+					original_shape, mirror_x, mirror_y)
 				# if new_shapes is false, it means that rule application did not
 				# change the design (all new shapes were identical to some already
 				# exising). We therefore reapply it with inverse mirroring
@@ -332,9 +173,9 @@ module IterativeSG
 				# should not be used on this shape anymore. At the moment this
 				# is OK only for shape rules with 1 mirror axis.
 				# TODO improve for shapes with no mirror axis or with 2 mirror axis!
-				if new_shapes == false and @new_original_shape != nil
-					new_shapes = Controller::apply_rule(true, rule_id, @new_original_shape,
-						(mirror_x * -1), (mirror_y * -1))
+				if new_shapes == false and @temp_original_shape != nil
+					new_shapes = @rules[rule_id].send(:apply_rule, true, 
+					@temp_original_shape, (mirror_x * -1), (mirror_y * -1))
 				end
 				
 				# exit if timeout is reached
@@ -364,10 +205,10 @@ module IterativeSG
 		# IterativeSG::Controller::generate_design(100)
 		
 		########################################################################
-		# Create ISG rule. This method serves only to remember which entites
-		# define Shape Rule.
+		# Create new ISG rule object and add it to list of @rules.
 		# 
 		# Accepts:
+		# type - to tell which rule class should be created
 		# rule_ID - rule identifier
 		# mirror_x -  can the rule mirrored in x direction?
 		# mirror_y -  can the rule mirrored in y direction?
@@ -376,69 +217,21 @@ module IterativeSG
 		# origin_new -  marker to set origin of new shape.
 		# shape_new - array of shapes (Groups with Face) that represent new shape
 		# 
-		# Notes:
-		# shape_new can contain several groups.
-		# 
+		# Notes: 
 		# 
 		# Returns:
-		# True when rule definition is sucessful.
+		# New rule object.
 		########################################################################	
-		def Controller::define_rule(rule_ID, mirror_x = false, mirror_y = false,
-				origin = @temp_origin, shape = @temp_shape,
+		def Controller::define_rule(type, rule_ID, mirror_x = false,
+				mirror_y = false, origin = @temp_origin, shape = @temp_shape,
 				origin_new = @temp_origin_new, shape_new = @temp_shape_new)
-			# setup origin of base shape
-			origin_uid = origin.UID
-			# setup base shape. If it is alread setup, it will just return its UID
-			shape_uid = shape.UID
-			# shape.set_attribute rule_ID, 'shape', shape_uid
 			
-			# setup origin of shape rule application
-			origin_new_uid = origin_new.UID
-				
-			# create shape rule application
-			shape_new_uid = Array.new
-			shape_new.each do |shp|
-				# collect all shape's UIDs so we can store them in dictionary
-				shape_new_uid << shp.UID
+			case type
+			when 'RuleReplaceOneShape'
+				@rules[rule_ID] = RuleReplaceOneShape.new(rule_ID,
+					mirror_x, mirror_y, origin, shape, origin_new, shape_new)
 			end
-			
-			# TODO add all objects to @rules_layer
-			
-			# store it in ruby hash
-			@rules[rule_ID] = Hash.new
-			@rules[rule_ID]['origin'] = origin
-			@rules[rule_ID]['shape'] = shape
-			@rules[rule_ID]['origin_new'] = origin_new
-			@rules[rule_ID]['shape_new'] = shape_new
-			@rules[rule_ID]['mirror_x'] = mirror_x
-			@rules[rule_ID]['mirror_y'] = mirror_y
-			
-			# create temporary group so we can calculate origin
-			temp_grp = Sketchup.active_model.entities.add_group shape_new
-			
-			# calculate distance vector from original shape to to its marker
-			marker1_position = origin.position
-			shape1_position = shape.bounds.min
-			marker2_position = origin_new.position
-			shape2_position = temp_grp.bounds.min
-			distance1_vector = marker1_position.vector_to shape1_position
-			distance2_vector = marker2_position.vector_to shape2_position
-			distance_vector = distance1_vector - distance2_vector
-			if distance_vector != [0,0,0]
-				# puts "distance_vector = #{distance_vector}"
-				@rules[rule_ID]['translation'] = Geom::Transformation.new distance_vector.reverse
-			end
-			
-			temp_grp.explode
-			
-			
-			# and we also need to remember it so we can load it at some later time...
-			# but only store it if it doesn't exist yet
-			if @dict_rules[rule_ID] == nil
-				  @dict_rules[rule_ID] = [origin_uid, shape_uid, origin_new_uid,
-					  shape_new_uid, mirror_x, mirror_y]
-			end
-			return true
+			return @rules[rule_ID]
 		end
 		# IterativeSG::Controller::define_rule(rule_ID, origin, shape, origin_new, shape_new)
 
@@ -546,7 +339,7 @@ module IterativeSG
 		# String with a name of proposed rule (eg. "Rule 1"
 		########################################################################
 		def Controller::generate_rule_name
-			number = @rules.keys.length + 1
+			number = @rules.length + 1
 			return "Rule #{number}"
 		end
 		
@@ -598,7 +391,7 @@ module IterativeSG
 			
 			# we know template model rule so create it if needed...
 			
-			rule = ["ewi05qc058p7i", "2pvcdxzxh9jaz", "mlfhnbw339ng1", ["1cf3rnstfmfpl", "h2nb5gwfwiihl"], true, true]
+			rule = ["RuleReplaceOneShape", "ewi05qc058p7i", "2pvcdxzxh9jaz", "mlfhnbw339ng1", ["1cf3rnstfmfpl", "h2nb5gwfwiihl"], true, true]
 			dict_rules = model.attribute_dictionary 'ISG_rules', true
 			dict_rules['Rule 1'] = rule
 			
@@ -777,16 +570,17 @@ module IterativeSG
 			@dict_rules.each_pair do |name, rules|
 				rule_ID = name
 				# get objects from their UIDs
-				origin = @entities_by_UID[rules[0]] # origin
-				shape = @entities_by_UID[rules[1]] # shape
-				origin_new = @entities_by_UID[rules[2]] # origin_new		
+				type = rules[0]
+				origin = @entities_by_UID[rules[1]] # origin
+				shape = @entities_by_UID[rules[2]] # shape
+				origin_new = @entities_by_UID[rules[3]] # origin_new		
 				shape_new = Array.new
-				rules[3].each do |ent| # shape_new
+				rules[4].each do |ent| # shape_new
 					shape_new << @entities_by_UID[ent]
 				end
-				mirror_x = rules[4]
-				mirror_y = rules[5]
-				self.define_rule(rule_ID, mirror_x, mirror_y, origin, shape, origin_new, shape_new)
+				mirror_x = rules[5]
+				mirror_y = rules[6]
+				self.define_rule(type, rule_ID, mirror_x, mirror_y, origin, shape, origin_new, shape_new)
 			end
 		end
 		#  IterativeSG::Controller::initialize; IterativeSG::Controller.rules
@@ -856,16 +650,7 @@ module IterativeSG
 		########################################################################	
 		def Controller::collect_candidate_shapes(rule_id)
 			# limit candidates to instances of correct component definition
-			instances = Array.new
-			temp_definitions = Array.new
-			@rules[rule_id]["shape_new"].each do |ent|
-				definition = ent.definition
-				# skip adding if this definition is already added
-				next if temp_definitions.include? definition
-				instances << definition.instances
-				temp_definitions << definition
-			end
-			instances.flatten!
+			instances = @rules[rule_id].shape.definition.instances
 			
 			# now collect only those in solution layer
 			shapes =  instances.select {|shp| shp.layer == @solution_layer}
@@ -899,6 +684,8 @@ module IterativeSG
 			@dict_rules.each_pair do |rule_name, rules|
 				delete_rule = false
 				rules.flatten!
+				# remove rule class name, which is at index 0
+				rules.delete_at 0
 				rules.each do |ent|
 					next unless ent.is_a? String
 					# if entity doesn't exist, delete rule
@@ -928,8 +715,3 @@ end
 
 # Once all scripts are loaded, we can add UI
 IterativeSG::UI_Menu::create_menu
-
-# Helper methods - remove for public release
-ISGC = IterativeSG::Controller
-def sel_array; return Sketchup::active_model.selection.to_a; end
-def sel; return Sketchup::active_model.selection[0]; end

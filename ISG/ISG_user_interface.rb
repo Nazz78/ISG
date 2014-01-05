@@ -61,19 +61,28 @@ module IterativeSG
 					Controller::pick_new_shape
 				end
 				isg_tool_menu.add_item('Declare New ISG Rule') do
-					prompts = ["Define New Rule Name: ", "Mirror in X direction: ", "Mirror in Y direction"]
-					defaults = [Controller::generate_rule_name, false, false]
+					prompts = ["Define New Rule Name: ", "Define Rule Type: ",
+						"Mirror in X direction: ", "Mirror in Y direction"]
+					defaults = [Controller::generate_rule_name,
+						Controller::rule_types,	false, false]
 					input = UI.inputbox prompts, defaults, "Declare New ISG Rule"
+					
 					if IterativeSG::Controller.rules.keys.include? input[0]
 						overload = UI.messagebox "Rule with this name already exists. Do you want to replace it?", MB_YESNO
 					end
+					
+					name = input[0]
+					type = input[1]
+					mir_x = input[2]
+					mir_y = input[3]
+					
 					if overload == 7 # 6=YES, 7=NO
 						puts "Rule not being created"
 					else
 						# make sure mirroring info is true boolean, not string
-						mirror_x = (input[1] == 'true' or input[1] == 'True' or input[1].to_s == '1')
-						mirror_y = (input[2] == 'true' or input[2] == 'True' or input[2].to_s == '1')
-						Controller::define_rule(input[0], mirror_x, mirror_y)
+						mirror_x = (mir_x == 'true' or mir_x == 'True' or mir_x == '1')
+						mirror_y = (mir_y == 'true' or mir_y == 'True' or mir_y == '1')
+						Controller::define_rule(type, name, mirror_x, mirror_y)
 					end
 				end
 			
