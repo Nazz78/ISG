@@ -290,13 +290,14 @@ module IterativeSG
 		# True once generation finishes.
 		########################################################################		
 		def Controller::generate_design(num_of_applications, rules = @rules.keys, timeout = 20)
+			application_counter = num_of_applications
 			# remember which rules are used at this generation so we can remove
 			# them when they can not be applied anymore
 			@temp_rules = rules.clone
 			timer = Time.now.to_f
 			time = 0
 			rules_applied = 0
-			until num_of_applications == 0 do
+			until application_counter == 0 do
 				# exit generation if there are no more rules which can be applied.
 				if @temp_rules.empty?
 					puts "Generation finished after #{rules_applied} rules applied."
@@ -337,22 +338,26 @@ module IterativeSG
 				end
 				
 				# exit if timeout is reached
-				time = (Time.now.to_f - timer)
-				if time > timeout
+				if (Time.now.to_f - timer) > timeout
 					# round timeout to two decimals
-					time = ((timeout*100).round)/100.0
-					num_of_applications = 0
+					application_counter = 0
 				end
 				# do not count it if rule application didn't create any new shapes...
 				next if new_shapes == false
 				
 				Sketchup.active_model.active_view.refresh
 				
-				num_of_applications -= 1
+				application_counter -= 1
 				rules_applied += 1
 			end
-			puts "Completion time =  #{Time.now.to_f - timer}"
-			UI.messagebox "Shape generation done!", MB_OK
+			completion_time = (((Time.now.to_f - timer)*100).round)/100.0
+			puts "Completion time =  #{completion_time}"
+			puts "Rules applied = #{rules_applied}"
+			additional_info = String.new
+			if num_of_applications != rules_applied
+				additional_info = "\nGeneration exited early: #{rules_applied} rules were applied."
+			end
+			UI.messagebox "Shape generation done in #{completion_time} sec.#{additional_info}", MB_OK
 			return true
 		end
 		# IterativeSG::Controller::initialize;   IterativeSG::Controller::generate_design(100)
@@ -420,7 +425,7 @@ module IterativeSG
 			distance2_vector = marker2_position.vector_to shape2_position
 			distance_vector = distance1_vector - distance2_vector
 			if distance_vector != [0,0,0]
-				puts "distance_vector = #{distance_vector}"
+				# puts "distance_vector = #{distance_vector}"
 				@rules[rule_ID]['translation'] = Geom::Transformation.new distance_vector.reverse
 			end
 			
@@ -459,14 +464,14 @@ module IterativeSG
 				UI.messagebox "Please select one origin marker and one shape. Both should be SketchUp components.", MB_OK
 				return false
 			end
-			marker = selection.select {|ent| ent.definition.name == 'Origin Marker'}
+			marker = selection.select {|ent| ent.definition.name == 'ISG_OriginMarker'}
 			shape = selection.select {|ent| ent.definition.name.include? 'Shape'}
 			
 			# If all is OK, initialize marker
 			if marker.length == 1
 				initialize_marker(marker[0])
 			else
-				UI.messagebox "Please make sure you have selected correct marker (Component name = Origin Marker).", MB_OK
+				UI.messagebox "Please make sure you have selected correct marker (Component name = ISG_OriginMarker.", MB_OK
 				return false
 			end
 			
@@ -502,9 +507,9 @@ module IterativeSG
 		########################################################################
 		def Controller::pick_new_shape(selection = Sketchup.active_model.selection.to_a)
 			# exit if marker is not picked up correctly
-			marker = selection.select {|ent| ent.definition.name == 'Origin Marker'}
+			marker = selection.select {|ent| ent.definition.name == 'ISG_OriginMarker'}
 			if marker.length != 1
-				UI.messagebox "Please make sure you have selected correct marker (Component name = Origin Marker).", MB_OK
+				UI.messagebox "Please make sure you have selected correct marker (Component name = ISG_OriginMarker.", MB_OK
 				return false
 			else
 				initialize_marker(marker[0])
@@ -677,7 +682,7 @@ module IterativeSG
 		# so that it contains unique ID.
 		# 
 		# Accepts:
-		# An Origin Marker ComponentInstance.
+		# An ISG_OriginMarker ComponentInstance.
 		# 
 		# Notes:
 		# 
@@ -687,7 +692,7 @@ module IterativeSG
 		########################################################################
 		def Controller::initialize_marker(component_instance)
 			unless component_instance.is_a? Sketchup::ComponentInstance
-				UI.messagebox "Please select ISG Origin Marker!", MB_OK
+				UI.messagebox "Please select ISG OriginMarker!", MB_OK
 				return false
 			end
 			# if marker is not yet initialized
@@ -841,7 +846,7 @@ module IterativeSG
 		# Collect all shapes to which specified rule can be applied.
 		# 
 		# Accepts:
-		# Rule id is a string which represents a rule (eg. 'Rule 1')
+		# rule_id is a string which represents a rule (eg. 'Rule 1')
 		# 
 		# Notes:
 		# 
@@ -850,12 +855,25 @@ module IterativeSG
 		# can accept specified rule.
 		########################################################################	
 		def Controller::collect_candidate_shapes(rule_id)
-			shapes = @shapes.select {|shp| shp.layer == @solution_layer}
-			candidates = Array.new
-			shapes.each do |shp|
-				candidates << shp unless shp.rules_applied.include? rule_id
+			# limit candidates to instances of correct component definition
+			instances = Array.new
+			temp_definitions = Array.new
+			@rules[rule_id]["shape_new"].each do |ent|
+				definition = ent.definition
+				# skip adding if this definition is already added
+				next if temp_definitions.include? definition
+				instances << definition.instances
+				temp_definitions << definition
 			end
+			instances.flatten!
 			
+			# now collect only those in solution layer
+			shapes =  instances.select {|shp| shp.layer == @solution_layer}
+			
+			# and filter to those, who are not marked with rule. If rule is marked
+			# it means it can not be applied anymore
+			candidates = shapes.select {|shp| not shp.rules_applied.include? rule_id}
+
 			if candidates.empty?
 				return nil
 			else
@@ -909,7 +927,7 @@ module IterativeSG
 end
 
 # Once all scripts are loaded, we can add UI
-IterativeSG::create_menu
+IterativeSG::UI_Menu::create_menu
 
 # Helper methods - remove for public release
 ISGC = IterativeSG::Controller
