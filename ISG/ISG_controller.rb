@@ -95,7 +95,7 @@ module IterativeSG
 			# hash of rules
 			@rules = Hash.new
 			# TODO add all rule types automatically...
-			@rule_types = ['RuleReplaceOneShape']
+			@rule_types = ['Replace']
 			# entities by UID enable us to quickly call entity by its UID
 			@entities_by_UID = Hash.new
 			# Setup boundary and Geometry module to work with it
@@ -227,8 +227,8 @@ module IterativeSG
 				origin_new = @temp_origin_new, shape_new = @temp_shape_new)
 			
 			case type
-			when 'RuleReplaceOneShape'
-				@rules[rule_ID] = RuleReplaceOneShape.new(rule_ID,
+			when 'Replace'
+				@rules[rule_ID] = Replace.new(rule_ID,
 					mirror_x, mirror_y, origin, shape, origin_new, shape_new)
 			end
 			return @rules[rule_ID]
@@ -391,7 +391,7 @@ module IterativeSG
 			
 			# we know template model rule so create it if needed...
 			
-			rule = ["RuleReplaceOneShape", "ewi05qc058p7i", "2pvcdxzxh9jaz", "mlfhnbw339ng1", ["1cf3rnstfmfpl", "h2nb5gwfwiihl"], true, true]
+			rule = ["Replace", "ewi05qc058p7i", "2pvcdxzxh9jaz", "mlfhnbw339ng1", ["1cf3rnstfmfpl", "h2nb5gwfwiihl"], true, true]
 			dict_rules = model.attribute_dictionary 'ISG_rules', true
 			dict_rules['Rule 1'] = rule
 			

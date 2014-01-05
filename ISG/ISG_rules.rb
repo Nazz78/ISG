@@ -25,7 +25,7 @@ module IterativeSG
 		end
 	end
 	
-	class RuleReplaceOneShape
+	class Replace
 		include RulesBase
 		########################################################################
 		# Initialize rule object and populate it with needed information.
@@ -95,7 +95,7 @@ module IterativeSG
 			
 			# and we also need to remember it so we can load it at some later time...
 			# but only store it if it doesn't exist yet
-			@dictionary[rule_ID] = ['RuleReplaceOneShape', origin_uid, shape_uid,
+			@dictionary[rule_ID] = ['Replace', origin_uid, shape_uid,
 				origin_new_uid, shape_new_uid, mirror_x, mirror_y]
 			return true
 		end
