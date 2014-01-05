@@ -61,8 +61,10 @@ module IterativeSG
 			# setup origin of base shape
 			origin_uid = @origin.UID
 			# setup base shape. If it is alread setup, it will just return its UID
-			shape_uid = @shape.UID
-			# shape.set_attribute rule_ID, 'shape', shape_uid
+			shape_uid  = Array.new
+			@shape.each do |shp|
+				shape_uid << shp.UID
+			end
 			
 			# setup origin of shape rule application
 			origin_new_uid = @origin_new.UID
@@ -75,13 +77,14 @@ module IterativeSG
 			end
 			
 			# create temporary group so we can calculate origin
-			temp_grp = Sketchup.active_model.entities.add_group @shape_new
+			temp_grp = Sketchup.active_model.entities.add_group @shape
+			temp_grp_new = Sketchup.active_model.entities.add_group @shape_new
 			
 			# calculate distance vector from original shape to to its marker
 			marker1_position = @origin.position
-			shape1_position = @shape.bounds.min
+			shape1_position = temp_grp.bounds.min
 			marker2_position = @origin_new.position
-			shape2_position = temp_grp.bounds.min
+			shape2_position = temp_grp_new.bounds.min
 			distance1_vector = marker1_position.vector_to shape1_position
 			distance2_vector = marker2_position.vector_to shape2_position
 			distance_vector = distance1_vector - distance2_vector
@@ -92,6 +95,7 @@ module IterativeSG
 			end
 			# we can now remove temporary group
 			temp_grp.explode
+			temp_grp_new.explode
 			
 			# and we also need to remember it so we can load it at some later time...
 			# but only store it if it doesn't exist yet
@@ -263,6 +267,44 @@ module IterativeSG
 		end
 		# original_shape = Sketchup.active_model.selection[0]
 		# ISGC::apply_rule(false, 'Rule 1', sel, 1, 1)
+
+		########################################################################
+		# Collect all shapes to which the rule can be applied.
+		# 
+		# Accepts:
+		# rule_id is a string which represents a rule (eg. 'Rule 1')
+		# 
+		# Notes:
+		# 
+		# Returns:
+		# List of all shapes to which rule can be applied or nil if no shape
+		# can accept specified rule.
+		########################################################################	
+		def collect_candidate_shapes()
+			candidates = Array.new
+			# if there is only one shape in rule we do not have to check much...
+			if @shape.length == 1
+				# limit candidates to instances of correct component definition
+				instances = @shape[0].definition.instances
+
+				# now collect only those in solution layer
+				shapes =  instances.select {|shp| shp.layer == @solution_layer}
+
+				# and filter to those, who are not marked with rule. If rule is marked
+				# it means it can not be applied anymore
+				candidates = shapes.select {|shp| not shp.rules_applied.include? @rule_ID}
+			# if there is more than 1 shape in the rule,
+			# we have to find appropriate match of shapes
+			else
+			end
+				
+			if candidates.empty?
+				return nil
+			else
+				return candidates
+			end
+		end
+		# ISGC::collect_candidate_shapes("Rule 1")
 	end
 end
 $test = []

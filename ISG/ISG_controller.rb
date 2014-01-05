@@ -147,7 +147,7 @@ module IterativeSG
 				# pick random rule
 				rule_id = @temp_rules[rand(@temp_rules.length)]
 				# find appropriate candidates for specified rule
-				candidate_shapes = collect_candidate_shapes(rule_id)
+				candidate_shapes = @rules[rule_id].collect_candidate_shapes
 				# exit if there is no candidate for this rule and also remove
 				# the rule from list of rules
 				if candidate_shapes == nil
@@ -253,12 +253,8 @@ module IterativeSG
 		# Marker and Shape, both set up for ISG work.
 		########################################################################
 		def Controller::pick_original_shape(selection = Sketchup.active_model.selection.to_a)
-			if selection.length != 2
-				UI.messagebox "Please select one origin marker and one shape. Both should be SketchUp components.", MB_OK
-				return false
-			end
 			marker = selection.select {|ent| ent.definition.name == 'ISG_OriginMarker'}
-			shape = selection.select {|ent| ent.definition.name.include? 'Shape'}
+			shapes = selection.select {|ent| ent.definition.name.include? 'Shape'}
 			
 			# If all is OK, initialize marker
 			if marker.length == 1
@@ -269,16 +265,12 @@ module IterativeSG
 			end
 			
 			# If all is OK, initialize shape
-			if shape.length == 1
-				initialize_shape(shape[0])
-			else
-				UI.messagebox "Please make sure you have only one Component selected as a basic shape.", MB_OK
-			end
+			shapes.each { |shape| initialize_shape(shape)}
 			
 			@temp_origin = marker[0]
-			@temp_shape = shape[0]
+			@temp_shape = shapes
 			# now return them
-			return marker[0], shape[0]
+			return marker[0], shapes
 		end
 		# IterativeSG::Controller::pick_original_shape
 		
@@ -572,7 +564,10 @@ module IterativeSG
 				# get objects from their UIDs
 				type = rules[0]
 				origin = @entities_by_UID[rules[1]] # origin
-				shape = @entities_by_UID[rules[2]] # shape
+				shape = Array.new
+				rules[2].each do |ent|
+					shape << @entities_by_UID[ent] # shape
+				end
 				origin_new = @entities_by_UID[rules[3]] # origin_new		
 				shape_new = Array.new
 				rules[4].each do |ent| # shape_new
@@ -635,37 +630,6 @@ module IterativeSG
 				end
 			end
 		end
-		
-		########################################################################
-		# Collect all shapes to which specified rule can be applied.
-		# 
-		# Accepts:
-		# rule_id is a string which represents a rule (eg. 'Rule 1')
-		# 
-		# Notes:
-		# 
-		# Returns:
-		# List of all shapes to which rule can be applied or nil if no shape
-		# can accept specified rule.
-		########################################################################	
-		def Controller::collect_candidate_shapes(rule_id)
-			# limit candidates to instances of correct component definition
-			instances = @rules[rule_id].shape.definition.instances
-			
-			# now collect only those in solution layer
-			shapes =  instances.select {|shp| shp.layer == @solution_layer}
-			
-			# and filter to those, who are not marked with rule. If rule is marked
-			# it means it can not be applied anymore
-			candidates = shapes.select {|shp| not shp.rules_applied.include? rule_id}
-
-			if candidates.empty?
-				return nil
-			else
-				return candidates
-			end
-		end
-		# ISGC::collect_candidate_shapes("Rule 1")
 		
 		########################################################################
 		# Cleanup all rules where there is some entity missing (origin marker,
