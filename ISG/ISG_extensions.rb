@@ -21,14 +21,14 @@ module IterativeSG
 		# with it. For now we add uniqe ID so shapes can be easiliy identified.
 		# 
 		# Accepts:
-		# shape_uid which is uniqe identifier, so we can receive specific instance
+		# shape_uid - uniqe identifier, so we can receive specific instance
 		# of the shape.
 		# 
 		# Notes:
 		# Each Component has a ID which is persistent when it is copied.
 		# 
 		# Returns:
-		# Object's ID and UID.
+		# Object's UID.
 		########################################################################
 		def initialize_ISG_shape(shape_uid)
 			# create dictionary if it doesn't exist
@@ -73,7 +73,7 @@ module IterativeSG
 		# Returns:
 		# nil, it just updated @position, @points and @trans_array variables.
 		########################################################################
-		def update_shape
+		def update_shape()
 			# define current position for faster access
 			@position = self.bounds.center
 			edges = self.definition.entities.to_a { |ent| ent.class == Sketchup::Edge }
@@ -102,13 +102,13 @@ module IterativeSG
 		# with it. For  now we add uniqe ID so shapes can be easiliy identified.
 		# 
 		# Accepts:
-		# UID which is uniqe identifier, so we can receive specific instance
+		# uid - which is uniqe identifier, so we can receive specific instance
 		# of marker.
 		# 
 		# Notes:
 		# 
 		# Returns:
-		# Object's UID.
+		# Object's @UID.
 		########################################################################
 		def initialize_ISG_marker(uid)
 			# create dictionary

@@ -119,10 +119,10 @@ module IterativeSG
 		# used.
 		# 
 		# Accepts:
-		# num_of_applications tells controller how many rules should be applied.
-		# rules tells ISG which rules should be used.
-		# timeout sets how long should the method run (this way we can avoid
-		# generations that take too long to compute).
+		# num_of_applications - how many rules should be applied.
+		# rules - tell ISG which rules should be used for design generation.
+		# timeout - how long should the method run before forcing it to exit
+		# (this way we can avoid generations that take too long to compute).
 		# 
 		# Notes:
 		# 
@@ -219,7 +219,7 @@ module IterativeSG
 		# mirror_y -  can the rule mirrored in y direction?
 		# origin - marker to set origin of existing shape
 		# shape - existing shape (Group with Face)
-		# origin_new -  marker to set origin of new shape.
+		# origin_new - marker to set origin of new shape.
 		# shape_new - array of shapes (Groups with Face) that represent new shape
 		# 
 		# Notes: 
@@ -246,11 +246,12 @@ module IterativeSG
 		# intended to be called once user has selected origin marker and shape.
 		# 
 		# Accepts:
-		# If argument is provided, it should an array which contains Origin mark
-		# and one Shape. If arguments are not provided this method will pick
-		# them up based on selection. In the future we might also accept
-		# Sketchup::Face as shape argument and automatically convert it to
-		# Group, but for now it is OK.
+		# selection - an array which contains Origin mark and Shape(s). If
+		# arguments are not provided this method will pick them up based on
+		# selection.
+		# TODO In the future we might also accept Sketchup::Face as shape
+		# argument and automatically convert it to ComponentInstance, but for
+		# this is OK.
 		# 
 		# Notes:
 		# 
@@ -287,7 +288,7 @@ module IterativeSG
 		# 
 		# Accepts:
 		# If argument is provided, it should an array which contains Origin mark
-		# and one Shape. If arguments are not provided this method will pick
+		# and Shape(s). If arguments are not provided this method will pick
 		# them up based on selection.
 		# 
 		# Notes:
@@ -413,7 +414,6 @@ module IterativeSG
 		# 
 		# Notes:
 		# 
-		# 
 		# Returns:
 		# UID of new shape
 		########################################################################
@@ -451,7 +451,7 @@ module IterativeSG
 		# several variables. This method takes care of it.
 		# 
 		# Accepts:
-		# Shape (group)
+		# component_instance - shape ComponentInstance to be removed.
 		# 
 		# Notes:
 		# 
@@ -472,7 +472,7 @@ module IterativeSG
 		# so that it contains unique ID.
 		# 
 		# Accepts:
-		# An ISG_OriginMarker ComponentInstance.
+		# origin_marker - ISG_OriginMarker ComponentInstance.
 		# 
 		# Notes:
 		# 
@@ -480,23 +480,23 @@ module IterativeSG
 		# Returns:
 		# UID of new marker.
 		########################################################################
-		def Controller::initialize_marker(component_instance)
-			unless component_instance.is_a? Sketchup::ComponentInstance
+		def Controller::initialize_marker(origin_marker)
+			unless origin_marker.is_a? Sketchup::ComponentInstance
 				UI.messagebox "Please select ISG OriginMarker!", MB_OK
 				return false
 			end
 			# if marker is not yet initialized
-			unless component_instance.respond_to? :initialize_ISG_marker
+			unless origin_marker.respond_to? :initialize_ISG_marker
 				# extend it with ISG methods
-				component_instance.send(:extend, IterativeSG::ComponentInstance)
+				origin_marker.send(:extend, IterativeSG::ComponentInstance)
 				# and initialize it
 				uid = generate_UID
-				uid = component_instance.initialize_ISG_marker(uid)
+				uid = origin_marker.initialize_ISG_marker(uid)
 			end
-			uid = component_instance.UID unless uid
+			uid = origin_marker.UID unless uid
 
 			@UIDs << uid
-			@entities_by_UID[uid] = component_instance
+			@entities_by_UID[uid] = origin_marker
 			return uid
 		end
 		
@@ -511,7 +511,7 @@ module IterativeSG
 		# Returns:
 		# Array of all initialized shapes (Sketchup::Groups)
 		########################################################################
-		def Controller::initialize_existing_shapes
+		def Controller::initialize_existing_shapes()
 			model = Sketchup.active_model
 			initialized_shapes = Array.new
 			all_components = model.entities.to_a.select {|ent| ent.is_a? Sketchup::ComponentInstance}
@@ -538,7 +538,7 @@ module IterativeSG
 		# Returns:
 		# Array of all initialized markers (Sketchup::ComponentInstance)
 		########################################################################
-		def Controller::initialize_origin_markers
+		def Controller::initialize_origin_markers()
 			model = Sketchup.active_model
 			initialized_markers = Array.new
 			all_components = model.entities.to_a.select {|ent| ent.is_a? Sketchup::ComponentInstance}
@@ -563,7 +563,7 @@ module IterativeSG
 		# Returns:
 		# List of all rules
 		########################################################################
-		def Controller::initialize_existing_rules
+		def Controller::initialize_existing_rules()
 			@dict_rules.each_pair do |name, rules|
 				rule_ID = name
 				# get objects from their UIDs
@@ -596,7 +596,7 @@ module IterativeSG
 		# Returns:
 		# Uniqe IDentifier.
 		########################################################################
-		def Controller::generate_UID
+		def Controller::generate_UID()
 			uid = rand(2**256).to_s(36).ljust(8,'a')[0..12]
 			# make sure no two UIDs are the same by using recursive function.
 			if @UIDs.include? uid
@@ -610,7 +610,8 @@ module IterativeSG
 		# Set unique ID to speficied object's dictionary.
 		# 
 		# Accepts:
-		# Sketchup entitiy, to which UID is applied.
+		# entity - shape ComponentInstance to which UID is applied.
+		# uid - uniqe identifier.
 		# 
 		# Notes:
 		# If UID is not present it will be populated with received one. If it is
@@ -648,7 +649,7 @@ module IterativeSG
 		# Returns:
 		# List of all rules deleted or nil if no rule was deleted.
 		########################################################################	
-		def Controller::cleanup_rules
+		def Controller::cleanup_rules()
 			deleted_rules = Array.new
 			@dict_rules.each_pair do |rule_name, rules|
 				delete_rule = false
@@ -659,7 +660,7 @@ module IterativeSG
 					next unless ent.is_a? String
 					# if entity doesn't exist, delete rule
 					if (@entities_by_UID[ent] == nil) or (@entities_by_UID[ent].deleted?)
-						puts 'deleted ent found'
+						# puts 'deleted ent found'
 						delete_rule = true
 					end
 				end

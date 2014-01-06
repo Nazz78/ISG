@@ -31,13 +31,13 @@ module IterativeSG
 		# Initialize rule object and populate it with needed information.
 		# 
 		# Accepts:
-		# rule_ID defines the name of the rule
-		# mirror_x and mirror_y can be either 1 or -1. 1 means no reflection, -1
+		# rule_ID - defines the name of the rule
+		# mirror_x and mirror_y - can be either 1 or -1. 1 means no reflection, -1
 		# means reflection in specified direction.
-		# origin specifies the origin of shape to which rule is applied
-		# shape is the shape to which rule is applied
-		# origin_new specifies the origin of new shape
-		# shape_new specifies the shapes which replace current shape
+		# origin - specifies the origin of shape to which rule is applied
+		# shape - is the shape to which rule is applied
+		# origin_new - specifies the origin of new shape
+		# shape_new - specifies the shapes which replace current shape
 		# 
 		# Notes:
 		# 
@@ -108,14 +108,14 @@ module IterativeSG
 		# Apply rule to speficied shape.
 		# 
 		# Accepts:
-		# mark_rule is a flag to tell if original shape should be marked with
+		# mark_rule - a flag to tell if original shape should be marked with
 		# the rule or not. If true the shape will receive rule_id and will thus
 		# not be found by collect_candidate_shapes method for that specific rule.
-		# rule id defines the rule which will be applied
-		# original_shape is the actual shape to which rule will be applied. This
-		# shape will then be substituted (erased) with those defined by the rule.
-		# mirror_x and mirror_y can be either 1 or -1. 1 means no reflection, -1
-		# means reflection in specified direction.
+		# original_shape_array - is the actual shape to which rule will be
+		# applied. This shape will then be substituted (erased) with those
+		# defined by the rule.
+		# mirror_x and mirror_y - can be either 1 or -1. 1 means no reflection,
+		# -1 means reflection in specified direction.
 		# 
 		# Notes:
 		# Component that represents shape boundary should only contain one face

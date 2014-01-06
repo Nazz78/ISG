@@ -27,7 +27,7 @@ module IterativeSG
 		# faster access to often used data.
 		# 
 		# Accepts:
-		# Bounary object which is of class Sketchup::ComponentInstance.
+		# boundary_component - which is of class Sketchup::ComponentInstance.
 		# 
 		# Notes:
 		# Component that represents shape boundary should only contain one face
@@ -47,8 +47,8 @@ module IterativeSG
 		# works for convex hull boundaries.
 		# 
 		# Accepts:
-		# center_point is shape's bounding box center
-		# shape_points is array of shape points.
+		# center_point - shape's bounding box center
+		# shape_points - array of shape points.
 		# 
 		# Returns:
 		# True if face is completely inside the specified boundary,
@@ -97,7 +97,7 @@ module IterativeSG
 		# selected shape.
 		# 
 		# Accepts:
-		# entity - solution shape (Group)
+		# entity - solution shape (ComponentInstance)
 		# 
 		# Notes:
 		# TODO: at the moment we only compare distance from bounding box center.
@@ -120,7 +120,25 @@ module IterativeSG
 			sorted_distance.each { |obj| closest_objects << obj[0] }
 			return closest_objects
 		end
-		
+
+		########################################################################
+		# Find object at specified distance and vector. We use this to quickly
+		# find shapes that match shape rule definition if they are made of many
+		# objects.
+		# 
+		# Accepts:
+		# entity - solution shape (ComponentInstance)
+		# solution_shapes - list of appropriate candidates ( usually
+		# ComponentInstance-s) for match
+		# distance - distance between two objects
+		# vector - direction between two objects positions
+		# 
+		# Notes:
+		# 
+		# Returns:
+		# Array of all ComponentInstace object that match distance and vector
+		# specification.
+		########################################################################
 		def Geometry::get_by_distance(entity, solution_shapes, distance, vector)
 			point = entity.position
 			solution_shapes.delete entity
