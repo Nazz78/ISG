@@ -35,7 +35,7 @@ module IterativeSG
 		class << self
 			attr_reader :rules_layer, :solution_layer, :initial_shape
 			attr_reader :rules, :boundary_component, :dict_rules
-			attr_reader :shapes, :UIDs, :entities_by_UID, :rule_types
+			attr_reader :shapes, :UIDs, :entities_by_UID
 			attr_accessor :temp_original_shape, :solution_shapes
 		end
 
@@ -94,8 +94,6 @@ module IterativeSG
 			@solution_shapes = Array.new
 			# hash of rules
 			@rules = Hash.new
-			# TODO add all rule types automatically...
-			@rule_types = ['Replace']
 			# entities by UID enable us to quickly call entity by its UID
 			@entities_by_UID = Hash.new
 			# Setup boundary and Geometry module to work with it
@@ -131,7 +129,7 @@ module IterativeSG
 		########################################################################		
 		def Controller::generate_design(num_of_applications, rules = @rules.keys, timeout = 20)
 			begin
-				Sketchup.active_model.start_operation 'Generate design', false, true, false
+				Sketchup.active_model.start_operation 'Generate design', false, false, false
 			rescue
 				Sketchup.active_model.start_operation 'Generate design'
 			end
@@ -213,32 +211,27 @@ module IterativeSG
 		# Create new ISG rule object and add it to list of @rules.
 		# 
 		# Accepts:
-		# type - to tell which rule class should be created
-		# rule_ID - rule identifier
-		# mirror_x -  can the rule mirrored in x direction?
-		# mirror_y -  can the rule mirrored in y direction?
-		# origin - marker to set origin of existing shape
-		# shape - existing shape (Group with Face)
-		# origin_new - marker to set origin of new shape.
-		# shape_new - array of shapes (Groups with Face) that represent new shape
+		# spec_hash - hash of all information needed to create new object. See
+		# each Rule object what they expect.
 		# 
 		# Notes: 
 		# 
 		# Returns:
 		# New rule object.
 		########################################################################	
-		def Controller::define_rule(type, rule_ID, mirror_x = false,
-				mirror_y = false, origin = @temp_origin, shape = @temp_shape,
-				origin_new = @temp_origin_new, shape_new = @temp_shape_new)
-			
-			case type
+		def Controller::define_rule(spec_hash)	
+			case spec_hash['type']
 			when 'Replace'
-				@rules[rule_ID] = Replace.new(rule_ID,
-					mirror_x, mirror_y, origin, shape, origin_new, shape_new)
+				spec_hash['origin'] = @temp_origin if spec_hash['origin'] == nil
+				spec_hash['shape'] = @temp_shape if spec_hash['shape'] == nil
+				spec_hash['origin_new'] = @temp_origin_new if spec_hash['origin_new'] == nil
+				spec_hash['shape_new'] = @temp_shape_new if spec_hash['shape_new'] == nil
+				@rules[spec_hash['rule_ID']] = Replace.new(spec_hash)
+			when 'Merge'
+				@rules[spec_hash['rule_ID']] = Merge.new(spec_hash)
 			end
-			return @rules[rule_ID]
+			return @rules[spec_hash['rule_ID']]
 		end
-		# IterativeSG::Controller::define_rule(rule_ID, origin, shape, origin_new, shape_new)
 
 		########################################################################
 		# Helper method to quickly pick original shape. That is the shape which
@@ -389,7 +382,7 @@ module IterativeSG
 			
 			# we know template model rule so create it if needed...
 			
-			rule = ["Replace", "ewi05qc058p7i", "2pvcdxzxh9jaz", "mlfhnbw339ng1", ["1cf3rnstfmfpl", "h2nb5gwfwiihl"], true, true]
+			rule = [["type", "Replace"], ["origin_uid", "ewi05qc058p7i"], ["shape_uid", ["2pvcdxzxh9jaz"]], ["origin_new_uid", "mlfhnbw339ng1"], ["shape_new_uid", ["1cf3rnstfmfpl", "h2nb5gwfwiihl"]], ["mirror_x", true], ["mirror_y", true]]
 			dict_rules = model.attribute_dictionary 'ISG_rules', true
 			dict_rules['Rule 1'] = rule
 			
@@ -561,29 +554,59 @@ module IterativeSG
 		# Notes:
 		# 
 		# Returns:
-		# List of all rules
+		# List of all rules generated.
 		########################################################################
 		def Controller::initialize_existing_rules()
 			@dict_rules.each_pair do |name, rules|
-				rule_ID = name
+				rules_hash = dict_rules_to_hash(name)
+				rules_hash['rule_ID'] = name
 				# get objects from their UIDs
-				type = rules[0]
-				origin = @entities_by_UID[rules[1]] # origin
-				shape = Array.new
-				rules[2].each do |ent|
-					shape << @entities_by_UID[ent] # shape
+				rules_hash.each_pair do |key, value|
+					if key.include? '_uid'
+						if value.is_a? Array
+							values = Array.new
+							value.each { |uid| values << @entities_by_UID[uid] }
+							# real usage does not have _uid postfix
+							new_name = key.gsub('_uid','')
+							rules_hash[new_name] = values
+						else
+							new_name = key.gsub('_uid','')
+							rules_hash[new_name] = @entities_by_UID[value]
+						end
+					end
+					
 				end
-				origin_new = @entities_by_UID[rules[3]] # origin_new		
-				shape_new = Array.new
-				rules[4].each do |ent| # shape_new
-					shape_new << @entities_by_UID[ent]
-				end
-				mirror_x = rules[5]
-				mirror_y = rules[6]
-				self.define_rule(type, rule_ID, mirror_x, mirror_y, origin, shape, origin_new, shape_new)
+				self.define_rule(rules_hash)
 			end
+			return @rules
 		end
 		#  IterativeSG::Controller::initialize; IterativeSG::Controller.rules
+
+		########################################################################
+		# Convert Rule values stored in Dictionary to Hash, so we can use it
+		# when redefining rules. This is needed since SketchUp Dictionary can
+		# not store hashes...
+		# 
+		# Accepts:
+		# rule_ID of rule in question
+		# 
+		# Notes:
+		# 
+		# Returns:
+		# Hash of all rule related values.
+		########################################################################
+		def Controller::dict_rules_to_hash(rule_ID)
+			hash = Hash.new
+			@dict_rules[rule_ID].each do |array_element|
+				# get first element in array and remove it
+				name = array_element.shift
+				# get its values
+				value = array_element[0]
+				hash[name] = value
+			end
+			# puts hash.inspect
+			return hash
+		end
 		
 		########################################################################
 		# Generate unique string of 12 alphanumeric characters.
@@ -604,6 +627,24 @@ module IterativeSG
 			end
 			# add it to list of all UIDs
 			return uid
+		end
+
+		########################################################################
+		# Generate new shape name.
+		# 
+		# Accepts:
+		# Nothing, fully automatic.
+		# 
+		# Notes:
+		# 
+		# Returns:
+		# String with new shape name (eg. Shape 5)
+		########################################################################
+		def Controller::generate_shape_ID()
+			components = Sketchup.active_model.definitions.to_a
+			shapes = components.select {|ent| ent.name.include? 'Shape'}
+			# make sure no two UIDs are the same by using recursive function.
+			return "Shape #{shapes.length + 1}"
 		end
 		
 		########################################################################
@@ -651,17 +692,24 @@ module IterativeSG
 		########################################################################	
 		def Controller::cleanup_rules()
 			deleted_rules = Array.new
-			@dict_rules.each_pair do |rule_name, rules|
+			@dict_rules.each_pair do |rule_name, double_arrays|
 				delete_rule = false
-				rules.flatten!
-				# remove rule class name, which is at index 0
-				rules.delete_at 0
-				rules.each do |ent|
-					next unless ent.is_a? String
-					# if entity doesn't exist, delete rule
-					if (@entities_by_UID[ent] == nil) or (@entities_by_UID[ent].deleted?)
-						# puts 'deleted ent found'
-						delete_rule = true
+
+				double_arrays.each do |spec|
+					next unless spec[0].include? '_uid'
+					if spec[1].is_a? Array
+						# if entity doesn't exist, delete rule
+						spec[1].each do |ent|
+							if (@entities_by_UID[ent] == nil) or (@entities_by_UID[ent].deleted?)
+								# puts 'deleted ent found'
+								delete_rule = true
+							end
+						end
+					else
+						if (@entities_by_UID[spec[1]] == nil) or (@entities_by_UID[spec[1]].deleted?)
+							# puts 'deleted ent found'
+							delete_rule = true
+						end
 					end
 				end
 				
@@ -676,6 +724,7 @@ module IterativeSG
 			if deleted_rules.empty?
 				return nil 
 			else
+				puts 'deleted rules!'
 				return deleted_rules
 			end
 		end

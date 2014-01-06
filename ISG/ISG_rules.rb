@@ -24,39 +24,42 @@ module IterativeSG
 			
 		end
 	end
-	
+
+	############################################################################
+	# Class Replace is used for shape rules where one (or more) shape is
+	# replaced by another.
+	############################################################################
 	class Replace
 		include RulesBase
 		########################################################################
 		# Initialize rule object and populate it with needed information.
 		# 
 		# Accepts:
+		# specification_hash where:
 		# rule_ID - defines the name of the rule
-		# mirror_x and mirror_y - can be either 1 or -1. 1 means no reflection, -1
-		# means reflection in specified direction.
 		# origin - specifies the origin of shape to which rule is applied
 		# shape - is the shape to which rule is applied
 		# origin_new - specifies the origin of new shape
 		# shape_new - specifies the shapes which replace current shape
+		# mirror_x and mirror_y - can be either 1 or -1. 1 means no reflection, -1
+		# means reflection in specified direction.
 		# 
 		# Notes:
 		# 
 		# Returns:
-		# true once object is created
+		# New object created.
 		########################################################################
-		def initialize(rule_ID, mirror_x, mirror_y,
-				origin,	shape, origin_new, shape_new)
+		def initialize(specification_hash)
 			# define variables
 			@dictionary = Controller.dict_rules
 			@solution_layer = Controller.solution_layer
-			
-			@rule_ID = rule_ID
-			@origin = origin
-			@shape = shape
-			@origin_new = origin_new
-			@shape_new = shape_new
-			@mirror_x = mirror_x
-			@mirror_y = mirror_y
+			@rule_ID = specification_hash['rule_ID']
+			@origin = specification_hash['origin']
+			@shape = specification_hash['shape']
+			@origin_new = specification_hash['origin_new']
+			@shape_new = specification_hash['shape_new']
+			@mirror_x = specification_hash['mirror_x']
+			@mirror_y = specification_hash['mirror_y']
 			
 			# setup origin of base shape
 			origin_uid = @origin.UID
@@ -97,11 +100,18 @@ module IterativeSG
 			temp_grp.explode
 			temp_grp_new.explode
 			
-			# and we also need to remember it so we can load it at some later time...
-			# but only store it if it doesn't exist yet
-			@dictionary[rule_ID] = ['Replace', origin_uid, shape_uid,
+			# and we also need to remember it so we
+			# can load it at some later time...
+			type = ['type', 'Replace']
+			origin_uid = ['origin_uid', origin_uid]
+			shape_uid = ['shape_uid', shape_uid]
+			origin_new_uid = ['origin_new_uid', origin_new_uid]
+			shape_new_uid = ['shape_new_uid', shape_new_uid]
+			mirror_x = ['mirror_x', @mirror_x]
+			mirror_y = ['mirror_y', @mirror_y]
+			@dictionary[@rule_ID] = [type, origin_uid, shape_uid,
 				origin_new_uid, shape_new_uid, mirror_x, mirror_y]
-			return true
+			return self
 		end
 
 		########################################################################
@@ -293,13 +303,12 @@ module IterativeSG
 		# Collect all shapes to which the rule can be applied.
 		# 
 		# Accepts:
-		# rule_id is a string which represents a rule (eg. 'Rule 1')
+		# Nothing, fully automatic
 		# 
 		# Notes:
 		# 
 		# Returns:
-		# List of all shapes to which rule can be applied or nil if no shape
-		# can accept specified rule.
+		# One candidate shape to which rule can be applied.
 		########################################################################	
 		def collect_candidate_shapes()
 			candidates = Array.new
@@ -362,5 +371,150 @@ module IterativeSG
 		end
 		# ISGC::collect_candidate_shapes("Rule 1")
 	end
+	
+	############################################################################
+	# Class Merge is used for shape rules where two or more shapes are merged
+	# together. They can be merged either in x or y direction. For now it is
+	# limited to merge only closest shapes. This way it works more on a parametric
+	# principle...
+	############################################################################
+	class Merge
+		include RulesBase
+
+		########################################################################
+		# Initialize merge rule object and populate it with needed information.
+		# 
+		# Accepts:
+		# specification_hash where:
+		# rule_ID - defines the name of the rule
+		# merge_in_x - merge shapes in x (horizontal) direction
+		# merge_in_y - merge shapes in y (vertical) direction
+		# num_of_objects - how many objects should be merged
+		# shape_definitions - specifies which shapes can be merged together
+		# 
+		# Notes:
+		# 
+		# Returns:
+		# New object created.
+		########################################################################
+		def initialize(specification_hash)
+			# define variables
+			@dictionary = Controller.dict_rules
+			@solution_layer = Controller.solution_layer
+			
+			@rule_ID = specification_hash['rule_ID']
+			@merge_in_x = specification_hash['merge_in_x']
+			@merge_in_y = specification_hash['merge_in_y']
+			# number of objects to merge
+			# TODO - this can be parametric!
+			@num_of_objects = specification_hash['num_of_objects']
+			# list of shape definitions on which it works
+			@shape_definitions = specification_hash['shape_definitions']
+			
+			# define face material based on selection
+			edges = @shape_definitions[0].entities.select {|ent| ent.is_a? Sketchup::Edge}
+			unless edges.empty?
+				@edge_material = edge.material
+			else
+				@edge_material == nil
+			end
+			faces = @shape_definitions[0].entities.select {|ent| ent.is_a? Sketchup::Face}
+			unless faces.empty?
+				@face_material = faces[0].material
+			else
+				@face_material == nil
+			end
+		
+			# and we also need to remember it so we can load it at some later time...
+			# but only store it if it doesn't exist yet
+			type = ['type', 'Replace']
+			merge_in_x = ['merge_in_x', @merge_in_x]
+			merge_in_y = ['merge_in_x', @merge_in_y]
+			num_of_objects = ['num_of_objects', @num_of_objects]
+			definition_names = Array.new
+			@shape_definitions.each do |definition|
+					definition_names << definition.name
+			end
+			shape_definitions = ['shape_definitions', definition_names]
+			
+			# now store them to dictionary
+			@dictionary[@rule_ID] = Array.new
+			@dictionary[@rule_ID] = [type, merge_in_x,
+				merge_in_y, num_of_objects, shape_definitions]
+
+			return self
+		end
+
+		########################################################################
+		# Apply the rule to specified shapes.
+		# 
+		# Accepts:
+		# shapes - list of shapes that will be merged together.
+		# 
+		# Notes:
+		# TODO: add shape checking to see if some newly generated shapes are 
+		# the same as existing ones. If so, do not generate new ones but only
+		# create new instance of existing component and apply correct transformation.
+		# We might want to do this using specification from which shapes new
+		# shape is generated.
+		# 
+		# Returns:
+		# New shape which is a result of rule application.
+		########################################################################
+		def apply_rule(shapes)
+			# remove any non valid shapes
+			valid_shapes = shapes.select {|shp| @shape_definitions.include? shp.definition}
+			
+			# collect all information needed
+			name = Controller::generate_shape_ID()
+			points = Array.new
+			valid_shapes.each { |ent| points += ent.points }
+			
+			# now add new shape
+			new_shape = Geometry::add_face_in_component(name, points, @material)
+			Controller::initialize_shape(new_shape)
+			new_shape.layer = @solution_layer
+			new_shape.name = 'ISG_Shape'
+			
+			# and remove original shapes
+			valid_shapes.each { |shp| Controller::remove_shape(shp) }
+			return new_shape
+		end
+
+		########################################################################
+		# Collect shapes with which we will generate new shape
+		# 
+		# Accepts:
+		# num_of_objects - how many objects should be returned - merged?
+		# direction - horizontal(x) or vertical(y) for now
+		# 
+		# Notes:
+		# TODO: add shape checking to see if some newly generated shapes are 
+		# the same as existing ones. If so, do not generate new ones but only
+		# create new instance of existing component and apply correct transformation.
+		# We might want to do this using specification from which shapes new
+		# shape is generated.
+		# 
+		# Returns:
+		# New shape which is a result of rule application.
+		########################################################################
+		def collect_candidate_shapes(num_of_objects, direction)
+			instances = Array.new
+			@shape_definitions.each do |shape_definition|
+				instances = shape_definition.instances
+			end
+			# pick random instance
+			instance = instances[rand(instances.length)]
+			# now collect closest neighbour
+			neighbours = collect_closest_in_direction(direction)
+			
+			return neighbours
+		end
+		
+		private
+		
+		def collect_closest_in_direction(direction)
+			Geometry::get_by_distance(entity, solution_shapes, distance, vector)
+		end
+	end
 end
-$test = []

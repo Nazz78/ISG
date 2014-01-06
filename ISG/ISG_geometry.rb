@@ -146,7 +146,7 @@ module IterativeSG
 			solution_shapes.each do |ent|
 				if (point.distance(ent.position)) == distance
 					# also make sure vector is paralel to one specified
-					if vector.parallel?(point.vector_to ent.position)
+					if vector.parallel?(point.vector_to(ent.position))
 						objects << ent
 					end
 				end
@@ -205,7 +205,37 @@ module IterativeSG
 			return group_2_points.empty?
 		end
 		# IterativeSG::Geometry::identical?(group_1, group_2)
-
+			
+		########################################################################
+		# Create new ComponentDefinition with a face from specified points.
+		# 
+		# Accepts:
+		# name - name of new shape
+		# points - list of 3D points from which convex face will be created
+		# material - material to be applied to face
+		# 
+		# Notes:
+		# For now this method creates only convex faces.
+		# 
+		# Returns:
+		# New ComponentInstance object.
+		########################################################################
+		def Geometry::add_face_in_component(name, points, face_material = nil,
+			edge_material = nil)
+			# Create group and fill it with face
+			comp_definition = Sketchup.active_model.definitions.add(name)
+			
+			ordered_points = convex_hull(points)
+			face = comp_definition.entities.add_face(ordered_points)
+			
+			# face normal up!
+			face.reverse! if face.normal.z < 0
+			face.material = face_material unless face_material == nil
+			face.edges.each {|e| e.material = edge_material} unless edge_material == nil
+			# add it to the model
+			return Sketchup.active_model.entities.add_instance comp_definition, [0,0,0]
+		end
+		
 		########################################################################	
 		# PRIVATE METHODS BELOW!
 		########################################################################		
@@ -252,6 +282,95 @@ module IterativeSG
 			end
 			# and return it
 			return points
+		end
+		
+		########################################################################
+		# Sort vertices so they form convex hull for polygon creation. See
+		# http://en.wikibooks.org/wiki/Algorithm_Implementation/Geometry/Convex_hull/Monotone_chain#Ruby
+		# for more information. This method works only in horizontal plane!
+		# 
+		# Accepts:
+		# points - list of 3D points from which convex face will be created
+		# 
+		# Notes:
+		# 
+		# Returns:
+		# Vertices in order which forms convex hull.
+		########################################################################
+		def Geometry::convex_hull(points)
+			sorted_vertices = sort_vertices(points)
+			
+			return sorted_vertices if sorted_vertices.length < 3
+			lower = Array.new
+			sorted_vertices.each do |p|
+				while lower.length > 1 and cross(lower[-2], lower[-1], p) <= 0 do lower.pop end
+				lower.push(p)
+			end
+			upper = Array.new
+			sorted_vertices.reverse_each do |p|
+				while upper.length > 1 and cross(upper[-2], upper[-1], p) <= 0 do upper.pop end
+				upper.push(p)
+			end
+			return lower[0...-1] + upper[0...-1]
+		end
+		
+		########################################################################
+		# Calculate cross product. See http://en.wikibooks.org/wiki/Algorithm_Implementation/Geometry/Convex_hull/Monotone_chain#Ruby
+		# for more information.
+		# 
+		# Accepts:
+		# add documentation
+		# 
+		# Notes:
+		# 
+		# Returns:
+		# cross product
+		########################################################################
+		def Geometry::cross(o, a, b)
+			(a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x)
+		end
+		
+		########################################################################
+
+		# 
+		# Return:
+
+		########################################################################
+		# Sort the vertices by x-coordinate (in case of a tie, sort by
+		# y-coordinate).  See http://en.wikibooks.org/wiki/Algorithm_Implementation/Geometry/Convex_hull/Monotone_chain#Ruby
+		# for more information.
+		# 
+		# Accepts:
+		# points - list of 3D point objects
+		# 
+		# Notes:
+		# 
+		# Returns:
+		# Vertices in sorted by x coordinate.
+		########################################################################
+		def Geometry::sort_vertices(points)
+			sorted_points = Array.new
+			# remove each vertex, one by one until all are sorted
+			until points.empty?
+				x_min = y_min = 1_000_000.m
+				selected_point = Geom::Point3d.new
+				# find the vertex with min x
+				points.each do |point|
+					pos_x = point.x
+					pos_y = point.y
+					if pos_x < x_min
+						x_min = pos_x
+						selected_point = point
+					# or min y if x is the same...
+					elsif (pos_x == x_min) and (pos_y < y_min)
+						y_min = pos_y
+						selected_point = point
+					end
+				end
+				sorted_points << selected_point
+				points.delete selected_point
+			end
+			return sorted_points
 		end
 	end
 end

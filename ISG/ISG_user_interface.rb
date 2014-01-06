@@ -60,11 +60,10 @@ module IterativeSG
 				isg_tool_menu.add_item('Pick New Shape') do
 					Controller::pick_new_shape
 				end
-				isg_tool_menu.add_item('Declare New ISG Rule') do
-					prompts = ["Define New Rule Name: ", "Define Rule Type: ",
+				isg_tool_menu.add_item('Define Replace Rule') do
+					prompts = ["Define New Rule Name: ",
 						"Mirror in X direction: ", "Mirror in Y direction"]
-					defaults = [Controller::generate_rule_name,
-						Controller::rule_types,	false, false]
+					defaults = [Controller::generate_rule_name,	false, false]
 					input = UI.inputbox prompts, defaults, "Declare New ISG Rule"
 					
 					if IterativeSG::Controller.rules.keys.include? input[0]
@@ -72,9 +71,8 @@ module IterativeSG
 					end
 					
 					name = input[0]
-					type = input[1]
-					mir_x = input[2]
-					mir_y = input[3]
+					mir_x = input[1]
+					mir_y = input[2]
 					
 					if overload == 7 # 6=YES, 7=NO
 						puts "Rule not being created"
@@ -82,10 +80,50 @@ module IterativeSG
 						# make sure mirroring info is true boolean, not string
 						mirror_x = (mir_x == 'true' or mir_x == 'True' or mir_x == '1')
 						mirror_y = (mir_y == 'true' or mir_y == 'True' or mir_y == '1')
-						Controller::define_rule(type, name, mirror_x, mirror_y)
+						spec_hash = Hash.new
+						spec_hash['type'] = 'Replace'
+						spec_hash['rule_ID'] = name
+						spec_hash['mirror_x'] = mirror_x
+						spec_hash['mirror_y'] = mirror_y
+
+						Controller::define_rule(spec_hash)
 					end
 				end
-			
+				# add separator ====================================================
+				isg_tool_menu.add_separator
+				
+				isg_tool_menu.add_item('Define Merge Rule') do
+					# first check if shape definitions are selected
+					shape_definitions = Array.new
+					selection = Sketchup.active_model.selection.to_a
+					shape_instances = selection.select {|ent| ent.definition.name.include? 'Shape'}
+					shape_instances.uniq!
+					shape_instances.each { |ent| shape_definitions << ent.definition }
+					if shape_definitions.empty?
+						UI.messagebox "Please select some shapes to which this rule can be applied.", MB_OK
+					else
+
+						prompts = ["Define New Rule Name: ", "Merge in X direction: ",
+							 "Merge in Y direction: ", "Shapes to merge: "]
+						defaults = [Controller::generate_rule_name,	true, false, 2]
+						input = UI.inputbox prompts, defaults, "Declare New ISG Rule"
+
+						if IterativeSG::Controller.rules.keys.include? input[0]
+							overload = UI.messagebox "Rule with this name already exists. Do you want to replace it?", MB_YESNO
+						end
+
+						spec_hash = Hash.new
+						spec_hash['rule_ID'] = input[0]
+						spec_hash['merge_in_x'] = input[1]
+						spec_hash['merge_in_y'] = input[2]
+						spec_hash['num_of_objects'] = input[3]
+						spec_hash['shape_definitions'] = shape_definitions
+						spec_hash['type'] = 'Merge'
+
+						Controller::define_rule_2(spec_hash)
+					end
+				end
+				
 				# add separator ====================================================
 				isg_tool_menu.add_separator
 				isg_tool_menu.add_item('Show ISG Window') do
