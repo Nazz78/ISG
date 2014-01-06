@@ -126,33 +126,53 @@ module IterativeSG
 		# application does not change the design (all new shapes are identical
 		# to already existent ones).
 		########################################################################
-		def apply_rule(mark_rule, original_shape, mirror_x, mirror_y)
-			# get position of original shape
-			original_transformation = original_shape.transformation
-			reflection = 0
-			
-			# calculate mirroring if needed
-			if @mirror_x == true or @mirror_y == true
-				# if original_shape is already mirrored, we need to recalculate
-				# scaling transformation to adapt it
-				if original_transformation.xaxis.x == -1
-					mirror_x = mirror_x * -1
+		def apply_rule(mark_rule, original_shape_array, mirror_x, mirror_y)
+			original_transformation = 0
+			# TODO for now we need to handle single shapes differently than
+			# multiple shapes due to Sketchup bug, which causes bugsplat
+			# when entities are added to group when defining it.
+			# but it seems to work when multiple entities are added...???
+			if original_shape_array.length == 1
+				original_shape = original_shape_array[0]
+				original_transformation = original_shape.transformation
+				# calculate mirroring if needed
+				if @mirror_x == true or @mirror_y == true
+					# if original_shape is already mirrored, we need to recalculate
+					# scaling transformation to adapt it
+					if original_transformation.xaxis.x == -1
+						mirror_x = mirror_x * -1
+					end
+					if original_transformation.yaxis.y == -1
+						mirror_y = mirror_y * -1
+					end
+					# apply mirroring if needed
+					unless mirror_x == 1 and mirror_y == 1
+						# let's apply the transformation!
+						reflection = Geom::Transformation.scaling original_shape.position, mirror_x, mirror_y, 1
+						original_shape.transform! reflection
+					end
 				end
-				if original_transformation.yaxis.y == -1
-					mirror_y = mirror_y * -1
+				# we can now get proper transformation...
+				original_transformation = original_shape.transformation
+			else
+				# add shapes to group so we do not need to care about transformations
+				temp_grp = Sketchup.active_model.entities.add_group original_shape_array
+				original_transformation = temp_grp.transformation
+				# calculate mirroring if needed
+				if @mirror_x == true or @mirror_y == true
+					# apply mirroring if needed
+					unless mirror_x == 1 and mirror_y == 1
+						# let's apply the transformation!
+						reflection = Geom::Transformation.scaling temp_grp.bounds.center, mirror_x, mirror_y, 1
+						temp_grp.transform! reflection
+					end
 				end
-				# apply mirroring if needed
-				unless mirror_x == 1 and mirror_y == 1
-					# let's apply the transformation!
-					reflection = Geom::Transformation.scaling original_shape.position, mirror_x, mirror_y, 1
-					original_shape.transform! reflection
-				end
+				# now get proper transformation
+				original_transformation = temp_grp.transformation
 			end
-			
-			# now get proper transformation
-			original_transformation = original_shape.transformation
+			# set temp original shape for controller
 			Controller.temp_original_shape = nil
-			
+
 			# copy shapes of the rule and initialize them
 			new_shapes = Array.new
 			@shape_new.each do |entity|
@@ -167,7 +187,7 @@ module IterativeSG
 			# now transform the group so that it matches
 			# original shape transformation
 			new_entity = Sketchup.active_model.entities.add_group new_shapes
-			
+
 			# Once in group, move the shapes to correct location so we have
 			# correct origin when applying transformation! We calculate the
 			# distance only when rule is defined!
@@ -176,10 +196,10 @@ module IterativeSG
 					ent.transform! @translation
 				end
 			end
-			
+
 			# once distance is calculated apply transformation
 			new_entity.transformation = original_transformation
-			
+
 			# explode groups at correct position and filter them to shapes
 			exploded_ents = new_entity.explode
 			new_shapes = exploded_ents.select {|ent| ent.is_a? Sketchup::ComponentInstance}
@@ -188,7 +208,7 @@ module IterativeSG
 				# also update list of @solution_shapes
 				Controller::solution_shapes << ent
 			end
-			
+
 			# now make sure rule application is inside
 			# bounds, if not, erase all and return false
 			new_shapes.each do |shape|
@@ -196,46 +216,48 @@ module IterativeSG
 					# if rule is outside boundary, base shape shuld be marked
 					# so that the rule is not applied anymore
 					if mark_rule == true
-						original_shape.rules_applied << @rule_ID
-						original_shape.rules_applied.flatten!
+						original_shape_array.each do |original_shape|
+							original_shape.rules_applied << @rule_ID
+							original_shape.rules_applied.flatten!
+						end
 					end
-					Controller.temp_original_shape = original_shape
+					Controller.temp_original_shape = original_shape_array
 					new_shapes.each { |shp| Controller::remove_shape(shp) }
 					return false
 				end
 			end
-			
-			# count removed shapes. If the number of removed shapes is identical
-			# to the number of new shapes, we know nothing is changed - consider
-			# the rule to not be applied
-			removed_shapes_count = 0
-			new_shapes_count = new_shapes.length
-			
+
 			if mark_rule == true
-				original_shape.rules_applied << @rule_ID
-				original_shape.rules_applied.flatten!
-				original_shape.rules_applied.uniq!
-			end
-			
-			# see if any new shape is identical to original shape. If so,
-			# remove it
-			remove_original_shape = true
-			new_shapes.each do |ent|			
-				# now find out which shape replaces previous one and mark it
-				# TODO we should define this by the rule itself!
-				if Geometry::identical?(ent, original_shape)
-					# remove shape form list as we do not need to check it again.
-					new_shapes.delete ent
-					Controller.remove_shape(ent)
-					Controller.temp_original_shape = original_shape
-					removed_shapes_count += 1
-					remove_original_shape = false
-					break
+				original_shape_array.each do |original_shape|
+					original_shape.rules_applied << @rule_ID
+					original_shape.rules_applied.flatten!
+					original_shape.rules_applied.uniq!
 				end
 			end
-			# In any case we should remove original shape
-			Controller.remove_shape(original_shape) if remove_original_shape == true
+			# if original_shape_array.length > 1
+			# see if any new shape is identical to original shape.
+			# If so, remove it...
+			remove_original_shape = true
+			original_shape_array.each do |original_shape|
+				new_shapes.each do |ent|			
+					# now find out which shape replaces previous one and mark it
+					# TODO we should define this by the rule itself!
+					if Geometry::identical?(ent, original_shape)
+						# remove shape form list as we do not need to check it again.
+						new_shapes.delete ent
+						Controller.remove_shape(ent)
+						Controller.temp_original_shape = [original_shape]
+						remove_original_shape = false
+						break
+					end
+				end
+			end
 			
+			# In any case we should remove original shape
+			if remove_original_shape == true
+				original_shape_array.each { |shp| Controller.remove_shape(shp) } 
+			end
+
 			# TODO improve search mechanism
 			# also make sure there are no other shapes identical to new ones
 			# created. If there are, replace them and update rules_applied.
@@ -249,21 +271,20 @@ module IterativeSG
 					# if identical entity is found, erase new one
 					if Geometry::identical?(ent, shp)
 						Controller.remove_shape(ent)
-						removed_shapes_count += 1
+						new_shapes.delete ent
 						# we can skip all other shapes for this ent
 						break
 					end
 				end
 			end
-			
 			# if shapes just replaced existing ones, do
 			# not count it as a rule application
-			if removed_shapes_count == new_shapes_count
+			if new_shapes.empty?
 				return false
 			end
-			$test << new_shapes
-			
-			return Controller.solution_shapes
+			# elsif original_shape_array.length > 1
+				
+			return new_shapes
 		end
 		# original_shape = Sketchup.active_model.selection[0]
 		# ISGC::apply_rule(false, 'Rule 1', sel, 1, 1)
@@ -282,22 +303,57 @@ module IterativeSG
 		########################################################################	
 		def collect_candidate_shapes()
 			candidates = Array.new
+			shape_length = @shape.length
 			# if there is only one shape in rule we do not have to check much...
-			if @shape.length == 1
+			if shape_length == 1
 				# limit candidates to instances of correct component definition
 				instances = @shape[0].definition.instances
+				# and randomize them
+				instances = instances.sort_by { rand }
 
 				# now collect only those in solution layer
 				shapes =  instances.select {|shp| shp.layer == @solution_layer}
 
-				# and filter to those, who are not marked with rule. If rule is marked
-				# it means it can not be applied anymore
-				candidates = shapes.select {|shp| not shp.rules_applied.include? @rule_ID}
+				# we need to find only one, which is not marked with rule. If
+				# rule is marked it means it can not be applied anymore!
+				shapes.each do |shp|
+					candidates << shp unless shp.rules_applied.include? @rule_ID
+					break unless candidates.empty?
+				end
 			# if there is more than 1 shape in the rule,
 			# we have to find appropriate match of shapes
-			else
-			end
+			elsif shape_length > 1
+				shape_1_instances = @shape[0].definition.instances
+				shape_1_instances = shape_1_instances.select {|shp| shp.layer == @solution_layer}
+				shape_2_instances = @shape[1].definition.instances
+				shape_2_instances = shape_2_instances.select {|shp| shp.layer == @solution_layer}
+				# randomize shapes so we do not have to check everyone each time
+				# see optimization below..
+				shape_1_instances = shape_1_instances.sort_by { rand }
+				shape_2_instances = shape_2_instances.sort_by { rand }
 				
+				# calculate distance only once!
+				distance = @shape[0].position.distance(@shape[1].position)
+				# also consider vector!
+				vector = @shape[0].position.vector_to(@shape[1].position)
+				
+				# now collect only those in solution layer
+				candidates = Array.new
+				shape_1_instances.each do |shp|
+					# do not check self...
+					shape_2_instances.delete shp
+					# get distance from shape1 and shape2
+					matching_distance = Geometry::get_by_distance(shp,
+						shape_2_instances, distance, vector)
+					unless matching_distance.empty?
+						candidates = ([shp].push matching_distance[0])
+					end
+					# OPTIMIZATION - we skip expensive (time consuming) checking
+					# for other possible candidates if 5 are found.
+					break unless candidates.empty?
+				end
+			end
+
 			if candidates.empty?
 				return nil
 			else

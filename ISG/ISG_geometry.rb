@@ -110,14 +110,30 @@ module IterativeSG
 		def Geometry::sort_by_distance(entity)
 			point = entity.position
 			distance_hash = Hash.new
-			Controller.solution_shapes.each do |shape|
-				next if entity == shape
+			solution_shapes = Controller.solution_shapes.clone
+			solution_shapes.delete entity
+			solution_shapes.each do |shape|
 				distance_hash[shape] = point.distance(shape.position)
 			end
 			sorted_distance = distance_hash.sort_by { |key, value| value }
 			closest_objects = Array.new
 			sorted_distance.each { |obj| closest_objects << obj[0] }
 			return closest_objects
+		end
+		
+		def Geometry::get_by_distance(entity, solution_shapes, distance, vector)
+			point = entity.position
+			solution_shapes.delete entity
+			objects = Array.new
+			solution_shapes.each do |ent|
+				if (point.distance(ent.position)) == distance
+					# also make sure vector is paralel to one specified
+					if vector.parallel?(point.vector_to ent.position)
+						objects << ent
+					end
+				end
+			end
+			return objects.flatten
 		end
 				
 

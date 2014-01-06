@@ -130,6 +130,11 @@ module IterativeSG
 		# True once generation finishes.
 		########################################################################		
 		def Controller::generate_design(num_of_applications, rules = @rules.keys, timeout = 20)
+			begin
+				Sketchup.active_model.start_operation 'Generate design', false, true, false
+			rescue
+				Sketchup.active_model.start_operation 'Generate design'
+			end
 			application_counter = num_of_applications
 			# remember which rules are used at this generation so we can remove
 			# them when they can not be applied anymore
@@ -147,16 +152,15 @@ module IterativeSG
 				# pick random rule
 				rule_id = @temp_rules[rand(@temp_rules.length)]
 				# find appropriate candidates for specified rule
-				candidate_shapes = @rules[rule_id].collect_candidate_shapes
+				# TODO let collect_candidate_shapes return only one shape!!!
+				original_shape_array = @rules[rule_id].collect_candidate_shapes
 				# exit if there is no candidate for this rule and also remove
 				# the rule from list of rules
-				if candidate_shapes == nil
+				if original_shape_array == nil
 					@temp_rules.delete rule_id
 					next 
 				end
 
-				# pick random candidate
-				original_shape = candidate_shapes[rand(candidate_shapes.length)]
 				# calculate random reflection (1 or -1)
 				mirror_x = rand(2)
 				mirror_x = -1 if mirror_x == 0
@@ -165,7 +169,7 @@ module IterativeSG
 				
 				# now apply the rule
 				new_shapes = @rules[rule_id].send(:apply_rule, false,
-					original_shape, mirror_x, mirror_y)
+					original_shape_array, mirror_x, mirror_y)
 				# if new_shapes is false, it means that rule application did not
 				# change the design (all new shapes were identical to some already
 				# exising). We therefore reapply it with inverse mirroring
@@ -198,6 +202,7 @@ module IterativeSG
 			if num_of_applications != rules_applied
 				additional_info = "\nGeneration exited early: #{rules_applied} rules were applied."
 			end
+			Sketchup.active_model.commit_operation
 			UI.messagebox "Shape generation done in #{completion_time} sec.#{additional_info}", MB_OK
 			return true
 		end

@@ -22,3 +22,8 @@ su_sg_description = 'Iterative Shape Grammars extension is a plugin to test new
 su_sg_extension.description = su_sg_description
 
 Sketchup.register_extension su_sg_extension, true
+
+# Helper methods - remove for public release
+ISGC = IterativeSG::Controller
+def sel_array; return Sketchup::active_model.selection.to_a; end
+def sel; return Sketchup::active_model.selection[0]; end
