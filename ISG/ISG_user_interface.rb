@@ -47,6 +47,8 @@ module IterativeSG
 					Controller::initialize(Sketchup.active_model.selection[0])
 				end
 				isg_tool_menu.add_item('Generate SG Design') do
+					# initialize controller if it is not initialized already
+					Controller::initialize if is_controller_initialized
 					self.generate_sg_design
 				end
 			
@@ -61,6 +63,8 @@ module IterativeSG
 					Controller::pick_new_shape
 				end
 				isg_tool_menu.add_item('Define Replace Rule') do
+					# initialize controller if it is not initialized already
+					Controller::initialize if is_controller_initialized
 					prompts = ["Define New Rule Name: ",
 						"Mirror in X direction: ", "Mirror in Y direction"]
 					defaults = [Controller::generate_rule_name,	false, false]
@@ -93,6 +97,8 @@ module IterativeSG
 				isg_tool_menu.add_separator
 				
 				isg_tool_menu.add_item('Define Merge Rule') do
+					# initialize controller if it is not initialized already
+					Controller::initialize if Controller.rules == nil
 					# first check if shape definitions are selected
 					shape_definitions = Array.new
 					selection = Sketchup.active_model.selection.to_a
@@ -112,15 +118,18 @@ module IterativeSG
 							overload = UI.messagebox "Rule with this name already exists. Do you want to replace it?", MB_YESNO
 						end
 
+						merge_in_x = (input[1] == 'true' or input[1] == 'True' or input[1] == '1')
+						merge_in_y = (input[2] == 'true' or input[2] == 'True' or input[2] == '1')
+						
 						spec_hash = Hash.new
 						spec_hash['rule_ID'] = input[0]
-						spec_hash['merge_in_x'] = input[1]
-						spec_hash['merge_in_y'] = input[2]
+						spec_hash['merge_in_x'] = merge_in_x
+						spec_hash['merge_in_y'] = merge_in_y
 						spec_hash['num_of_objects'] = input[3]
 						spec_hash['shape_definitions'] = shape_definitions
 						spec_hash['type'] = 'Merge'
 
-						Controller::define_rule_2(spec_hash)
+						Controller::define_rule(spec_hash)
 					end
 				end
 				
@@ -145,8 +154,7 @@ module IterativeSG
 			# generation of design.
 			####################################################################
 			def UI_Menu::generate_sg_design
-				# Make sure Controller is properly initialized
-				Controller::initialize(Sketchup.active_model.selection[0])
+				Controller::initialize if is_controller_initialized
 				prompts = ["Number of rule applicaitons: ", "Rules applied: ","Set timeout timer (in seconds): "]
 				controller_rules = Controller.rules.keys
 				if controller_rules.empty?

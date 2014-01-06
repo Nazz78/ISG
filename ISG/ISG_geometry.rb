@@ -37,6 +37,7 @@ module IterativeSG
 		# True.
 		########################################################################
 		def Geometry::initialize(boundary_component)
+			@boundary_component = boundary_component
 			@boundary_points = component_outer_loop(boundary_component)
 			return true
 		end
@@ -153,8 +154,52 @@ module IterativeSG
 			end
 			return objects.flatten
 		end
-				
 
+		########################################################################
+		# Find objects in specified direction. Objects are returned only when
+		# they are found in unobstructed way - that is when no other, uspecified
+		# object is in their way. We therefore need candidates in order to check
+		# this.
+		# 
+		# Accepts:
+		# entity - component from which search is begun
+		# candidates - list of shapes that are valid resuls.
+		# count - how many objects we should search for.
+		# vector - direction of search.
+		# max_distance - how far can found shape be from initial position.
+		# 
+		# Notes:
+		# 
+		# Returns:
+		# Array of ComponentInstace objects that match required specification.
+		########################################################################
+		def Geometry::collect_in_direction(entity, candidates = Sketchup.active_model.entities,
+				count = 2, vector = [1,0,0], max_distance = 10_000)
+			model = Sketchup.active_model
+			pos = entity.position
+			# begin from entity
+			ray = [pos, vector]
+			result = 1
+			distance = 0
+			components = Array.new
+			until (components.length == count) or (distance > max_distance)
+				result = model.raytest(ray, false)
+				break if result == nil		
+				new_pos = result[0]
+				ray = [new_pos,vector]
+				component = result[1][0]
+				next if component == entity
+				# exit if wrong shape was hit by raytest... 
+				unless candidates.include? component
+					return []
+				end
+				components << component
+				components.uniq!	
+			end
+			return components
+		end
+		# IterativeSG::Geometry::collect_in_direction(sel)
+		# 
 		########################################################################
 		# Check if two groups match. That is if the face they contain are exact
 		# same shape and at exact same place.
@@ -224,16 +269,16 @@ module IterativeSG
 			edge_material = nil)
 			# Create group and fill it with face
 			comp_definition = Sketchup.active_model.definitions.add(name)
-			
+
 			ordered_points = convex_hull(points)
 			face = comp_definition.entities.add_face(ordered_points)
-			
+
 			# face normal up!
 			face.reverse! if face.normal.z < 0
 			face.material = face_material unless face_material == nil
 			face.edges.each {|e| e.material = edge_material} unless edge_material == nil
 			# add it to the model
-			return Sketchup.active_model.entities.add_instance comp_definition, [0,0,0]
+			return Sketchup.active_model.entities.add_instance(comp_definition, [0,0,0])	
 		end
 		
 		########################################################################	

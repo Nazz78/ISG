@@ -408,13 +408,15 @@ module IterativeSG
 			# number of objects to merge
 			# TODO - this can be parametric!
 			@num_of_objects = specification_hash['num_of_objects']
+			# TODO - add in UI
+			@max_distance = 1_000.m
 			# list of shape definitions on which it works
 			@shape_definitions = specification_hash['shape_definitions']
 			
 			# define face material based on selection
 			edges = @shape_definitions[0].entities.select {|ent| ent.is_a? Sketchup::Edge}
 			unless edges.empty?
-				@edge_material = edge.material
+				@edge_material = edges[0].material
 			else
 				@edge_material == nil
 			end
@@ -427,15 +429,15 @@ module IterativeSG
 		
 			# and we also need to remember it so we can load it at some later time...
 			# but only store it if it doesn't exist yet
-			type = ['type', 'Replace']
+			type = ['type', 'Merge']
 			merge_in_x = ['merge_in_x', @merge_in_x]
-			merge_in_y = ['merge_in_x', @merge_in_y]
+			merge_in_y = ['merge_in_y', @merge_in_y]
 			num_of_objects = ['num_of_objects', @num_of_objects]
 			definition_names = Array.new
 			@shape_definitions.each do |definition|
 					definition_names << definition.name
 			end
-			shape_definitions = ['shape_definitions', definition_names]
+			shape_definitions = ['shape_definitions_names', definition_names]
 			
 			# now store them to dictionary
 			@dictionary[@rule_ID] = Array.new
@@ -461,23 +463,20 @@ module IterativeSG
 		# Returns:
 		# New shape which is a result of rule application.
 		########################################################################
-		def apply_rule(shapes)
-			# remove any non valid shapes
-			valid_shapes = shapes.select {|shp| @shape_definitions.include? shp.definition}
-			
+		def apply_rule(shapes)			
 			# collect all information needed
 			name = Controller::generate_shape_ID()
 			points = Array.new
-			valid_shapes.each { |ent| points += ent.points }
-			
+			shapes.each { |ent| points += ent.points }
 			# now add new shape
-			new_shape = Geometry::add_face_in_component(name, points, @material)
+			new_shape = Geometry::add_face_in_component(name, points,
+				@face_material, @edge_material)
 			Controller::initialize_shape(new_shape)
 			new_shape.layer = @solution_layer
 			new_shape.name = 'ISG_Shape'
 			
 			# and remove original shapes
-			valid_shapes.each { |shp| Controller::remove_shape(shp) }
+			shapes.each { |shp| Controller::remove_shape(shp) }
 			return new_shape
 		end
 
@@ -486,7 +485,6 @@ module IterativeSG
 		# 
 		# Accepts:
 		# num_of_objects - how many objects should be returned - merged?
-		# direction - horizontal(x) or vertical(y) for now
 		# 
 		# Notes:
 		# TODO: add shape checking to see if some newly generated shapes are 
@@ -498,23 +496,66 @@ module IterativeSG
 		# Returns:
 		# New shape which is a result of rule application.
 		########################################################################
-		def collect_candidate_shapes(num_of_objects, direction)
+		def collect_candidate_shapes()
+			# calculate random direction if needed, we start with x direction
+			dir = rand(2)
+			dir = -1 if dir == 0
+			direction = Geom::Vector3d.new dir,0,0
+			if @merge_in_x == @merge_in_y
+				random = rand(2)
+				direction = Geom::Vector3d.new 0,dir,0 if random == 1
+			elsif @merge_in_y == true
+				direction = Geom::Vector3d.new 0,dir,0
+			end
+			
+			# collect all candidate instances
 			instances = Array.new
 			@shape_definitions.each do |shape_definition|
-				instances = shape_definition.instances
+				instances << shape_definition.instances
 			end
-			# pick random instance
-			instance = instances[rand(instances.length)]
-			# now collect closest neighbour
-			neighbours = collect_closest_in_direction(direction)
+			instances.flatten!
+			# limit to those in solution layer
+			instances = instances.select {|i| i.layer == @solution_layer}
+			# make copy
+			candidates = instances.clone
 			
-			return neighbours
-		end
-		
-		private
-		
-		def collect_closest_in_direction(direction)
-			Geometry::get_by_distance(entity, solution_shapes, distance, vector)
+			# pick random instance
+			shapes = Array.new
+			num = @num_of_objects - 1
+			until shapes.empty? == false
+				instance = instances[rand(instances.length)]
+				# remove object in question from search
+				instances.delete instance
+				candidates.delete instance
+
+				# now collect closest neighbour
+				neighbours = Geometry::collect_in_direction(instance,
+					candidates, num, direction, @max_distance) 
+				# if nothing was found...
+				unless neighbours.empty?
+					# check that shapes received are correct component instances
+					check = true
+					neighbours.each do |comp|
+						if @shape_definitions.include? comp.definition
+							
+						end
+						if Geometry::inside_boundary?(comp.position, comp.points) == false
+							instances.delete comp
+							check = false
+						end
+					end
+					if check = true
+						shapes << instance
+						shapes << neighbours
+						shapes.flatten!
+					end
+				end
+
+				return nil if instances.empty?
+			end
+			
+			# now return the shapes
+			return shapes
 		end
 	end
 end

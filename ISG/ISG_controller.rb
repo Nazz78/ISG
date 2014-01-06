@@ -58,6 +58,7 @@ module IterativeSG
 		# True if initialization is sucesfull, False otherwise.
 		########################################################################
 		def Controller::initialize(boundary_component = Sketchup.active_model.selection[0])
+			puts 'initializing controller'
 			if boundary_component.is_a? Sketchup::ComponentInstance and
 				  boundary_component.definition.name.include? 'Boundary'
 				# do nothing, all seems OK
@@ -149,44 +150,63 @@ module IterativeSG
 				
 				# pick random rule
 				rule_id = @temp_rules[rand(@temp_rules.length)]
-				# find appropriate candidates for specified rule
-				# TODO let collect_candidate_shapes return only one shape!!!
-				original_shape_array = @rules[rule_id].collect_candidate_shapes
-				# exit if there is no candidate for this rule and also remove
-				# the rule from list of rules
-				if original_shape_array == nil
-					@temp_rules.delete rule_id
-					next 
-				end
+				rule = @rules[rule_id]
+				
+				case rule
+				when IterativeSG::Replace
+					# find appropriate candidates for specified rule
+					original_shape_array = rule.collect_candidate_shapes
+					# exit if there is no candidate for this rule and also remove
+					# the rule from list of rules
+					if original_shape_array == nil
+						@temp_rules.delete rule_id
+						next 
+					end
 
-				# calculate random reflection (1 or -1)
-				mirror_x = rand(2)
-				mirror_x = -1 if mirror_x == 0
-				mirror_y = rand(2)
-				mirror_y = -1 if mirror_y == 0
-				
-				# now apply the rule
-				new_shapes = @rules[rule_id].send(:apply_rule, false,
-					original_shape_array, mirror_x, mirror_y)
-				# if new_shapes is false, it means that rule application did not
-				# change the design (all new shapes were identical to some already
-				# exising). We therefore reapply it with inverse mirroring
-				# and set the mark_rule flag, so it will remember that this rule
-				# should not be used on this shape anymore. At the moment this
-				# is OK only for shape rules with 1 mirror axis.
-				# TODO improve for shapes with no mirror axis or with 2 mirror axis!
-				if new_shapes == false and @temp_original_shape != nil
-					new_shapes = @rules[rule_id].send(:apply_rule, true, 
-					@temp_original_shape, (mirror_x * -1), (mirror_y * -1))
+					# calculate random reflection (1 or -1)
+					mirror_x = rand(2)
+					mirror_x = -1 if mirror_x == 0
+					mirror_y = rand(2)
+					mirror_y = -1 if mirror_y == 0
+
+					# now apply the rule
+					new_shapes = rule.send(:apply_rule, false,
+						original_shape_array, mirror_x, mirror_y)
+					# if new_shapes is false, it means that rule application did not
+					# change the design (all new shapes were identical to some already
+					# exising). We therefore reapply it with inverse mirroring
+					# and set the mark_rule flag, so it will remember that this rule
+					# should not be used on this shape anymore. At the moment this
+					# is OK only for shape rules with 1 mirror axis.
+					# TODO improve for shapes with no mirror axis or with 2 mirror axis!
+					if new_shapes == false and @temp_original_shape != nil
+						new_shapes = rule.send(:apply_rule, true, 
+						@temp_original_shape, (mirror_x * -1), (mirror_y * -1))
+					end
+					# exit if timeout is reached
+					if (Time.now.to_f - timer) > timeout
+						# round timeout to two decimals
+						application_counter = 0
+					end
+					# do not count it if rule application didn't create any new shapes...
+					next if new_shapes == false
+				when IterativeSG::Merge
+					shapes_to_merge = rule.collect_candidate_shapes
+					
+					# exit if timeout is reached
+					if (Time.now.to_f - timer) > timeout
+						# round timeout to two decimals
+						application_counter = 0
+					end
+					
+					# next if shapes_to_merge.empty?
+					if shapes_to_merge == nil
+						application_counter = 0
+						next
+					end
+
+					new_shapes = rule.send(:apply_rule, shapes_to_merge)
 				end
-				
-				# exit if timeout is reached
-				if (Time.now.to_f - timer) > timeout
-					# round timeout to two decimals
-					application_counter = 0
-				end
-				# do not count it if rule application didn't create any new shapes...
-				next if new_shapes == false
 				
 				Sketchup.active_model.active_view.refresh
 				
@@ -355,6 +375,8 @@ module IterativeSG
 				ent.locked = false if ent.locked? == true
 			end
 			entities.erase_entities entities.to_a
+			# also cleanup dictionary
+			@dict_rules.keys.each {|k| @dict_rules.delete_key k}
 			
 			rubyScriptsPath = File.expand_path(File.dirname(__FILE__))
 			isg_lib_path = File.join(rubyScriptsPath, 'ISG_lib')
@@ -573,8 +595,12 @@ module IterativeSG
 							new_name = key.gsub('_uid','')
 							rules_hash[new_name] = @entities_by_UID[value]
 						end
+					elsif key.include? 'shape_definitions_names'
+						values = Array.new
+						defs = Sketchup.active_model.definitions
+						values = defs.select { |d| value.include?(d.name)}
+						rules_hash['shape_definitions'] = values
 					end
-					
 				end
 				self.define_rule(rules_hash)
 			end
