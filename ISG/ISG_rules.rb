@@ -61,6 +61,8 @@ module IterativeSG
 			@shape_new = specification_hash['shape_new']
 			@mirror_x = specification_hash['mirror_x']
 			@mirror_y = specification_hash['mirror_y']
+			# also store shape definitions that are used by this rule
+			@shape_definitions = Array.new
 			
 			# setup origin of base shape
 			origin_uid = @origin.UID
@@ -68,7 +70,9 @@ module IterativeSG
 			shape_uid  = Array.new
 			@shape.each do |shp|
 				shape_uid << shp.UID
+				@shape_definitions << shp.definition
 			end
+			@shape_definitions.uniq!
 			
 			# setup origin of shape rule application
 			origin_new_uid = @origin_new.UID
@@ -301,6 +305,41 @@ module IterativeSG
 		# ISGC::apply_rule(false, 'Rule 1', sel, 1, 1)
 
 		########################################################################
+		# Check if rule can be applied to selected shapes.
+		# 
+		# Accepts:
+		# shapes - list of shapes to be checked.
+		# 
+		# Notes:
+		# TODO - improve this method by returning more than one candidate shape
+		# 
+		# Returns:
+		# True if rule can be applied to selected shapes, false otherwise.
+		########################################################################
+		def check_rule(shapes)
+			# remove boundary if slected
+			shapes.delete Controller.boundary_component
+			# filter to correct shapes and also return false if no shape
+			# is correct component
+			all_shapes = Array.new
+			correct_definitions = Array.new
+			shapes.each do |shape|
+				all_shapes << shape if @shape_definitions.include? shape.definition
+			end
+			return false if all_shapes.empty?
+			
+			# if there is more than one shape see that the selection matches
+			return false if @shape.length > all_shapes.length
+			
+			# now do also the collection of candidate shapes
+			candidates = self.collect_candidate_shapes(all_shapes, true)
+			return false if candidates == nil
+			
+			return candidates
+		end
+		# ISGC.rules['Rule 3'].check_rule(sel_array)
+		
+		########################################################################
 		# Collect all shapes to which the rule can be applied.
 		# 
 		# Accepts:
@@ -311,15 +350,16 @@ module IterativeSG
 		# Returns:
 		# One candidate shape to which rule can be applied.
 		########################################################################	
-		def collect_candidate_shapes()
+		def collect_candidate_shapes(instances = nil, skip_random = false)
 			candidates = Array.new
 			shape_length = @shape.length
+			
 			# if there is only one shape in rule we do not have to check much...
 			if shape_length == 1
 				# limit candidates to instances of correct component definition
-				instances = @shape[0].definition.instances
+				instances = @shape[0].definition.instances unless instances
 				# and randomize them
-				instances = instances.sort_by { rand }
+				instances = instances.sort_by { rand } unless skip_random == true
 
 				# now collect only those in solution layer
 				shapes =  instances.select {|shp| shp.layer == @solution_layer}
@@ -332,15 +372,20 @@ module IterativeSG
 				end
 			# if there is more than 1 shape in the rule,
 			# we have to find appropriate match of shapes
-			elsif shape_length > 1
-				shape_1_instances = @shape[0].definition.instances
-				shape_1_instances = shape_1_instances.select {|shp| shp.layer == @solution_layer}
-				shape_2_instances = @shape[1].definition.instances
-				shape_2_instances = shape_2_instances.select {|shp| shp.layer == @solution_layer}
-				# randomize shapes so we do not have to check everyone each time
-				# see optimization below..
-				shape_1_instances = shape_1_instances.sort_by { rand }
-				shape_2_instances = shape_2_instances.sort_by { rand }
+			elsif shape_length == 2
+				if instances == nil
+					shape_1_instances = @shape[0].definition.instances
+					shape_1_instances = shape_1_instances.select {|shp| shp.layer == @solution_layer}
+					shape_2_instances = @shape[1].definition.instances
+					shape_2_instances = shape_2_instances.select {|shp| shp.layer == @solution_layer}
+					# randomize shapes so we do not have to check everyone each time
+					# see optimization below..
+					shape_1_instances = shape_1_instances.sort_by { rand }
+					shape_2_instances = shape_2_instances.sort_by { rand }
+				else
+					shape_1_instances = instances
+					shape_2_instances = instances
+				end
 				
 				# calculate distance only once!
 				distance = @shape[0].position.distance(@shape[1].position)
@@ -510,8 +555,6 @@ module IterativeSG
 			end
 				
 			candidates = self.collect_candidate_shapes(sorted_shapes, direction, true)
-			puts "sorted_shapes = #{sorted_shapes}"
-			puts "candidates = #{candidates}"
 			return false if candidates == nil
 			result = true
 			sorted_shapes.each do |cand|
