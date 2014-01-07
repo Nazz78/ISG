@@ -58,6 +58,7 @@ module IterativeSG
 		# True if initialization is sucesfull, False otherwise.
 		########################################################################
 		def Controller::initialize(boundary_component = Sketchup.active_model.selection[0])
+			puts "initializing controller"
 			if boundary_component.is_a? Sketchup::ComponentInstance and
 				  boundary_component.definition.name.include? 'Boundary'
 				# do nothing, all seems OK
@@ -67,14 +68,13 @@ module IterativeSG
 					ent.is_a? Sketchup::ComponentInstance }
 				boundaries = components.select { |ent|
 					ent.definition.name.include? 'Boundary' }
-				if boundaries.length > 1
+				if boundaries.length != 1
 					UI.messagebox "Please select boundary Component!", MB_OK
 					return false
 				else
 					boundary_component = boundaries[0]
 				end
 			end
-			
 			# create new controller if it does not exist yet
 			@@controller = new unless @@controller
 			
@@ -415,6 +415,35 @@ module IterativeSG
 			return nil
 		end
 		# ISGC::prepare_model
+
+		########################################################################
+		# Find rules which can be applied to selected shapes.
+		# 
+		# Accepts:
+		# selection - is an array of shape objects.
+		# 
+		# Notes:
+		# 
+		# Returns:
+		# Hash of rule - shape pairs to which rule can be applied or false
+		# when no suitable rules can be found.
+		########################################################################
+		def Controller::find_candidate_rules(selection = Sketchup.active_model.selection.to_a)
+			selection.delete @boundary_component
+			# filter current selection to appropriate shapes
+			rule_selection_hash = Hash.new
+			@rules.each_pair do |rule_ID, rule_object|
+				# next if selection doesn't match
+				shapes = rule_object.check_rule(selection)
+				puts shapes.inspect
+				rule_selection_hash[rule_ID] = shapes unless shapes == false
+			end
+			if rule_selection_hash.empty?
+				return false
+			else
+				return rule_selection_hash
+			end
+		end
 		
 		########################################################################	
 		# PRIVATE METHODS BELOW!
@@ -759,5 +788,5 @@ module IterativeSG
 	end
 end
 
-# Once all scripts are loaded, we can add UI
+# Once all scripts are loaded, we can add controller and UI
 IterativeSG::UI_Menu::create_menu
