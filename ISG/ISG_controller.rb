@@ -58,7 +58,6 @@ module IterativeSG
 		# True if initialization is sucesfull, False otherwise.
 		########################################################################
 		def Controller::initialize(boundary_component = Sketchup.active_model.selection[0])
-			puts 'initializing controller'
 			if boundary_component.is_a? Sketchup::ComponentInstance and
 				  boundary_component.definition.name.include? 'Boundary'
 				# do nothing, all seems OK
@@ -376,7 +375,9 @@ module IterativeSG
 			end
 			entities.erase_entities entities.to_a
 			# also cleanup dictionary
-			@dict_rules.keys.each {|k| @dict_rules.delete_key k}
+			unless @dict_rules == nil
+				@dict_rules.keys.each {|k| @dict_rules.delete_key k}
+			end
 			
 			rubyScriptsPath = File.expand_path(File.dirname(__FILE__))
 			isg_lib_path = File.join(rubyScriptsPath, 'ISG_lib')
