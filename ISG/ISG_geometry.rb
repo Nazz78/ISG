@@ -417,5 +417,46 @@ module IterativeSG
 			end
 			return sorted_points
 		end
+		
+		########################################################################
+		# Sort the components by x-coordinate or y cooridanate.
+		# 
+		# Accepts:
+		# components - list of ISG component objects
+		# direction - :x for horizontal or :y for vertical search
+		# 
+		# Notes:
+		# 
+		# Returns:
+		# Shapes in order defined.
+		########################################################################
+		def Geometry::sort_components_in_direction(components, direction = :x)
+			sorted_components = Array.new
+			# remove each vertex, one by one until all are sorted
+			until components.empty?
+				x_min = y_min = 1_000_000.m
+				selected_component = Geom::Point3d.new
+				# find the vertex with min x
+				components.each do |component|
+					point = component.position
+					if direction == :x
+						pos_x = point.x
+						if pos_x < x_min
+							x_min = pos_x
+							selected_component = component
+						end
+					else
+						pos_y = point.y
+						if pos_y < y_min
+							y_min = pos_y
+							selected_component = component
+						end
+					end
+				end
+				sorted_components << selected_component
+				components.delete selected_component
+			end
+			return sorted_components
+		end
 	end
 end

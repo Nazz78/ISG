@@ -183,6 +183,8 @@ module IterativeSG
 					rules_used = input[1].split ", "
 					# also make sure those rules really exist!
 					rules_used.each do |rule_name|
+						# remove whitespace
+						rule_name.lstrip!
 						rules_used.delete rule_name unless controller_rules.include? rule_name
 					end
 				end

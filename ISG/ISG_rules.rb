@@ -19,6 +19,7 @@ module IterativeSG
 		# we need to expose original @shape so collect_candidate_shapes method
 		# can find all instances of object being replaced.
 		attr_reader :rule_ID ,:shape
+		attr_reader :requested_objects
 		
 		def find_by_ID(rule_ID)
 			
@@ -481,10 +482,54 @@ module IterativeSG
 		end
 
 		########################################################################
+		# Check if rule can be applied to selected shapes.
+		# 
+		# Accepts:
+		# shapes - list of shapes to be checked.
+		# 
+		# Notes:
+		# 
+		# Returns:
+		# True if rule can be applied to selected shapes, false otherwise.
+		########################################################################
+		def check_rule(shapes)
+			# remove boundary if slected
+			shapes.delete Controller.boundary_component
+			
+			# pick leftmost shape
+			sorted_shapes = Array.new
+			if @merge_in_x == true
+				sorted_shapes = Geometry::sort_components_in_direction(shapes, :x)
+			else
+				sorted_shapes = Geometry::sort_components_in_direction(shapes, :y)
+			end
+			# define direction from left to right or from bottom up
+			direction = Geom::Vector3d.new 1,0,0
+			if @merge_in_y == true
+				direction = Geom::Vector3d.new 0,1,0
+			end
+				
+			candidates = self.collect_candidate_shapes(sorted_shapes, direction, true)
+			puts "sorted_shapes = #{sorted_shapes}"
+			puts "candidates = #{candidates}"
+			return false if candidates == nil
+			result = true
+			sorted_shapes.each do |cand|
+				result = false unless candidates.include? cand
+			end
+			return result
+		end
+		# ISGC.rules['Rule 4'].check_rule(sel_array)
+
+		########################################################################
 		# Collect shapes with which we will generate new shape
 		# 
 		# Accepts:
 		# num_of_objects - how many objects should be returned - merged?
+		# direction -  direction in which candidates should be searched. If
+		# direction is nil, the method will pick random one.
+		# skip_random - do not randomize shape picking order. We need to skip
+		# randomization when selected shapes are checked for rule applicaton.
 		# 
 		# Notes:
 		# TODO: add shape checking to see if some newly generated shapes are 
@@ -494,26 +539,34 @@ module IterativeSG
 		# shape is generated.
 		# 
 		# Returns:
-		# New shape which is a result of rule application.
+		# List of candidate shapes to be merged.
 		########################################################################
-		def collect_candidate_shapes()
+		def collect_candidate_shapes(all_candidates = @shape_definitions,
+				direction = nil, skip_random = false)
 			# calculate random direction if needed, we start with x direction
-			dir = rand(2)
-			dir = -1 if dir == 0
-			direction = Geom::Vector3d.new dir,0,0
-			if @merge_in_x == @merge_in_y
-				random = rand(2)
-				direction = Geom::Vector3d.new 0,dir,0 if random == 1
-			elsif @merge_in_y == true
-				direction = Geom::Vector3d.new 0,dir,0
+			if direction == nil
+				dir = rand(2)
+				dir = -1 if dir == 0
+				direction = Geom::Vector3d.new dir,0,0
+				if @merge_in_x == @merge_in_y
+					random = rand(2)
+					direction = Geom::Vector3d.new 0,dir,0 if random == 1
+				elsif @merge_in_y == true
+					direction = Geom::Vector3d.new 0,dir,0
+				end
 			end
 			
-			# collect all candidate instances
+			# collect all candidate instances if needed
 			instances = Array.new
-			@shape_definitions.each do |shape_definition|
-				instances << shape_definition.instances
+			if all_candidates == @shape_definitions
+				@shape_definitions.each do |shape_definition|
+					instances << shape_definition.instances
+				end
+				instances.flatten!
+			else
+				instances = all_candidates
 			end
-			instances.flatten!
+					
 			# limit to those in solution layer
 			instances = instances.select {|i| i.layer == @solution_layer}
 			# make copy
@@ -523,7 +576,13 @@ module IterativeSG
 			shapes = Array.new
 			num = @num_of_objects - 1
 			until shapes.empty? == false
-				instance = instances[rand(instances.length)]
+				instance = 0
+				# we need to skip random in case when check_rule method is called
+				if skip_random == false
+					instance = instances[rand(instances.length)]
+				else
+					instance = instances[0]
+				end
 				# remove object in question from search
 				instances.delete instance
 				candidates.delete instance
@@ -544,7 +603,7 @@ module IterativeSG
 							check = false
 						end
 					end
-					if check = true
+					if check == true
 						shapes << instance
 						shapes << neighbours
 						shapes.flatten!
