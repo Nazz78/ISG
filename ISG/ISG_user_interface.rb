@@ -48,7 +48,7 @@ module IterativeSG
 				end
 				isg_tool_menu.add_item('Generate SG Design') do
 					# initialize controller if it is not initialized already
-					Controller::initialize if is_controller_initialized
+					Controller::initialize unless is_controller_initialized?
 					self.generate_sg_design
 				end
 			
@@ -64,7 +64,7 @@ module IterativeSG
 				end
 				isg_tool_menu.add_item('Define Replace Rule') do
 					# initialize controller if it is not initialized already
-					Controller::initialize if is_controller_initialized
+					Controller::initialize unless is_controller_initialized?
 					prompts = ["Define New Rule Name: ",
 						"Mirror in X direction: ", "Mirror in Y direction"]
 					defaults = [Controller::generate_rule_name,	false, false]
@@ -154,7 +154,7 @@ module IterativeSG
 			# generation of design.
 			####################################################################
 			def UI_Menu::generate_sg_design
-				Controller::initialize if is_controller_initialized
+				Controller::initialize unless is_controller_initialized?
 				prompts = ["Number of rule applicaitons: ", "Rules applied: ","Set timeout timer (in seconds): "]
 				controller_rules = Controller.rules.keys
 				if controller_rules.empty?
@@ -192,6 +192,30 @@ module IterativeSG
 				end
 
 				Controller::generate_design(@ui_iterations, rules_used, @ui_seconds)
+			end
+
+			########################################################################	
+			# PRIVATE METHODS BELOW!
+			########################################################################	
+			private
+			
+			########################################################################
+			# Check if Controller is properly initialized
+			# 
+			# Accepts:
+			# Nothing.
+			# 
+			# Notes:
+			# 
+			# Returns:
+			# True if all is OK, false otherwise.
+			########################################################################
+			def UI_Menu::is_controller_initialized?
+				return false if Controller.rules == nil
+				Controller.shapes.each do |shp|
+					return false unless shp.valid?
+				end
+				return true
 			end
 		end
 	end
