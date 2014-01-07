@@ -314,7 +314,8 @@ module IterativeSG
 		# TODO - improve this method by returning more than one candidate shape
 		# 
 		# Returns:
-		# True if rule can be applied to selected shapes, false otherwise.
+		# Ordered list of shapes to which rule can be applied or false if therea
+		# are no suitable candidates.
 		########################################################################
 		def check_rule(shapes)
 			# remove boundary if slected
@@ -535,7 +536,8 @@ module IterativeSG
 		# Notes:
 		# 
 		# Returns:
-		# True if rule can be applied to selected shapes, false otherwise.
+		# Ordered list of shapes to which rule can be applied or false if therea
+		# are no suitable candidates.
 		########################################################################
 		def check_rule(shapes)
 			# remove boundary if slected
@@ -553,14 +555,15 @@ module IterativeSG
 			if @merge_in_y == true
 				direction = Geom::Vector3d.new 0,1,0
 			end
-				
+			# do preliminary check
 			candidates = self.collect_candidate_shapes(sorted_shapes, direction, true)
 			return false if candidates == nil
+			
 			result = true
-			sorted_shapes.each do |cand|
-				result = false unless candidates.include? cand
+			candidates.each do |cand|
+				result = false unless sorted_shapes.include? cand
 			end
-			return result
+			return candidates
 		end
 		# ISGC.rules['Rule 4'].check_rule(sel_array)
 
@@ -638,8 +641,9 @@ module IterativeSG
 					# check that shapes received are correct component instances
 					check = true
 					neighbours.each do |comp|
-						if @shape_definitions.include? comp.definition
-							
+						unless @shape_definitions.include? comp.definition
+							instances.delete comp
+							check = false
 						end
 						if Geometry::inside_boundary?(comp.position, comp.points) == false
 							instances.delete comp
@@ -655,7 +659,6 @@ module IterativeSG
 
 				return nil if instances.empty?
 			end
-			
 			# now return the shapes
 			return shapes
 		end
