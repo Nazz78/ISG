@@ -524,14 +524,38 @@ module IterativeSG
 			new_shape = Geometry::add_face_in_component(name, points,
 				@face_material, @edge_material)
 			Controller::initialize_shape(new_shape)
+			new_shape.applied_by_rule = @rule_ID
 			new_shape.layer = @solution_layer
 			new_shape.name = 'ISG_Shape'
 			
 			# and remove original shapes
-			shapes.each { |shp| Controller::remove_shape(shp) }
+			entities_to_store = Array.new
+			shapes.each do |shp|
+				Controller::remove_shape(shp, false)
+				entities_to_store << shp
+			end
+			new_shape.store_erased_entites(entities_to_store)
 			return new_shape
 		end
 
+		########################################################################
+		# Remove specified shape and put back shapes from which it was generated.
+		# 
+		# Accepts:
+		# shape - entity to be erased
+		# 
+		# Notes:
+		# 
+		# Returns:
+		# True once done
+		########################################################################
+		def remove_rule(shape)
+			hidden_entities = shape.receive_erased_entites()
+			hidden_entities.each { |ent| ent.layer = @solution_layer }
+			Controller::remove_shape(shape, true)
+			return true
+		end
+		
 		########################################################################
 		# Check if rule can be applied to selected shapes.
 		# 

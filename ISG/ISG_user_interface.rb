@@ -56,6 +56,11 @@ module IterativeSG
 					self.initialize_controller
 					apply_rule
 				end
+				isg_tool_menu.add_item('Remove Rule') do
+					# initialize controller if it is not initialized already
+					self.initialize_controller
+					remove_rule
+				end
 				# add separator ================================================
 				isg_tool_menu.add_separator
 			
@@ -357,6 +362,15 @@ Also make sure selected shapes are inside boundary.", MB_OK
 			return resulting_shapes
 		end
 
+		def UI_Menu::remove_rule(selection = Sketchup.active_model.selection.to_a)
+			# filter to only shapes which have stored erased entities
+			filtered = selection.select {|ent| ent.receive_erased_entites != nil }
+			
+			filtered.each do |ent|
+				rule_ID = ent.applied_by_rule
+				Controller.rules[rule_ID].remove_rule(ent)
+			end
+		end
 		########################################################################
 		# Check if Controller is properly initialized, if not, itnitialize it.
 		# 

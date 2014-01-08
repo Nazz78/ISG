@@ -12,7 +12,7 @@ module IterativeSG
 	# Extension of Sketchup::Group objects which are used as shapes.
 	############################################################################
 	module ComponentInstance
-		attr_reader :UID, :points, :position, :trans_array,
+		attr_reader :UID, :points, :position, :trans_array, :applied_by_rule,
 		  :component_name
 		# rules applied specified which rule has already been aplied to the shape
 		attr_accessor :rules_applied
@@ -34,6 +34,9 @@ module IterativeSG
 			# create dictionary if it doesn't exist
 			@dict = self.attribute_dictionary 'IterativeSG', true
 			@rules_applied = Array.new
+			
+			# define rule that generated this shape
+			@applied_by_rule = @dict.get_attribute 'IterativeSG', 'applied_by_rule'
 			
 			# UIDs are a bit different - when shape is copied, they should
 			# not remain the same. So make sure to change them even if they exist.
@@ -132,6 +135,60 @@ module IterativeSG
 			self.update_shape
 			
 			return @UID
+		end
+		
+		########################################################################
+		# Store specified rule_ID to object's dictionary.
+		# 
+		# Accepts:
+		# rule_id - name of the rule that applied this shape.
+		# 
+		# Notes:
+		# 
+		# Returns:
+		# Nothing, it just stores rule's name.
+		########################################################################
+		def applied_by_rule=(rule_id)
+			@dict.set_attribute 'IterativeSG', 'applied_by_rule', rule_id
+			@applied_by_rule = rule_id
+		end
+		
+		########################################################################
+		# Store specified entities to dictionary.
+		# 
+		# Accepts:
+		# entities - array of entities that have been erased when this object
+		# was created.
+		# 
+		# Notes:
+		# 
+		# Returns:
+		# Nothing, it just stores entities UIDs.
+		########################################################################
+		def store_erased_entites(entities)
+			uids = Array.new
+			entities.each { |ent| uids << ent.UID }
+			@dict.set_attribute 'IterativeSG', 'erased_entities', uids
+		end
+
+		########################################################################
+		# Return all entities that this shape instance erased when it was
+		# applied.
+		# 
+		# Accepts:
+		# Nothing.
+		# 
+		# Notes:
+		# 
+		# Returns:
+		# Array of entities UIDs.
+		########################################################################
+		def receive_erased_entites()
+			entities = Array.new
+			uids = @dict.get_attribute 'IterativeSG', 'erased_entities'
+			return nil if uids == nil
+			uids.each { |uid| entities << Controller.entities_by_UID[uid]}
+			return entities
 		end
 	end
 end

@@ -33,7 +33,7 @@ module IterativeSG
 		
 		# Create Class level accessors
 		class << self
-			attr_reader :rules_layer, :solution_layer, :initial_shape
+			attr_reader :rules_layer, :solution_layer, :hidden_layer, :initial_shape
 			attr_reader :rules, :boundary_component, :dict_rules
 			attr_reader :shapes, :UIDs, :entities_by_UID
 			attr_accessor :temp_original_shape, :solution_shapes
@@ -84,6 +84,8 @@ module IterativeSG
 			@rules_layer = layers.add "ISG Rules"
 			@solution_layer = layers.add "ISG Solution"
 			@boundary_layer = layers.add "ISG Boundary"
+			@hidden_layer = layers.add "ISG Hidden"
+			@hidden_layer.visible = false
 			# create dictionary to store values that need to be saved...
 			@dict_shapes = model.attribute_dictionary 'ISG_shapes', true
 			@dict_rules = model.attribute_dictionary 'ISG_rules', true
@@ -503,18 +505,25 @@ module IterativeSG
 		# 
 		# Accepts:
 		# component_instance - shape ComponentInstance to be removed.
+		# erase - if erase is true, actually erase instances. If false, just
+		# hide them so we can revert them back if rule application is removed.
+		# See remove_rule(shape) methods in Rule classes.
 		# 
 		# Notes:
 		# 
 		# Returns:
 		# True once all is cleaned up.
 		########################################################################
-		def Controller::remove_shape(component_instance)
-			@UIDs.delete component_instance.UID
-			@entities_by_UID.delete(component_instance.UID)
-			@shapes.delete component_instance
-			@solution_shapes.delete component_instance
-			Sketchup.active_model.entities.erase_entities component_instance
+		def Controller::remove_shape(component_instance, erase = true)
+			if erase == false
+				component_instance.layer = @hidden_layer
+			else
+				@UIDs.delete component_instance.UID
+				@entities_by_UID.delete(component_instance.UID)
+				@shapes.delete component_instance
+				@solution_shapes.delete component_instance
+				Sketchup.active_model.entities.erase_entities component_instance
+			end
 			return true
 		end
 		
