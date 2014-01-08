@@ -67,7 +67,7 @@ module IterativeSG
 			
 			# setup origin of base shape
 			origin_uid = @origin.UID
-			# setup base shape. If it is alread setup, it will just return its UID
+			# setup base shape. If it's already setup, just return its UID
 			shape_uid  = Array.new
 			@shape.each do |shp|
 				shape_uid << shp.UID
@@ -259,7 +259,7 @@ module IterativeSG
 					# now find out which shape replaces previous one and mark it
 					# TODO we should define this by the rule itself!
 					if Geometry::identical?(ent, original_shape)
-						# remove shape form list as we do not need to check it again.
+						# remove shape from list - we don't need to recheck it
 						new_shapes.delete ent
 						Controller.remove_shape(ent)
 						Controller.temp_original_shape = [original_shape]
@@ -325,8 +325,8 @@ module IterativeSG
 			# is correct component
 			all_shapes = Array.new
 			correct_definitions = Array.new
-			shapes.each do |shape|
-				all_shapes << shape if @shape_definitions.include? shape.definition
+			shapes.each do |shp|
+				all_shapes << shp if @shape_definitions.include? shp.definition
 			end
 			return false if all_shapes.empty?
 			
@@ -342,7 +342,7 @@ module IterativeSG
 		# ISGC.rules['Rule 3'].check_rule(sel_array)
 		
 		########################################################################
-		# Collect all shapes to which the rule can be applied.
+		# Collect all shapes to which Replace rule instance can be applied.
 		# 
 		# Accepts:
 		# Nothing, fully automatic
@@ -381,8 +381,8 @@ module IterativeSG
 					shape_1_instances = shape_1_instances.select {|shp| shp.layer == @solution_layer}
 					shape_2_instances = @shape[1].definition.instances
 					shape_2_instances = shape_2_instances.select {|shp| shp.layer == @solution_layer}
-					# randomize shapes so we do not have to check everyone each time
-					# see optimization below..
+					# randomize shapes so we do not have to check everyone
+					# each time; see optimization below..
 					shape_1_instances = shape_1_instances.sort_by { rand }
 					shape_2_instances = shape_2_instances.sort_by { rand }
 				else
@@ -406,8 +406,8 @@ module IterativeSG
 					unless matching_distance.empty?
 						candidates = ([shp].push matching_distance[0])
 					end
-					# OPTIMIZATION - we skip expensive (time consuming) checking
-					# for other possible candidates if 5 are found.
+					# OPTIMIZATION - we skip expensive (time consuming)
+					# checking for other possible candidates if 5 are found.
 					break unless candidates.empty?
 				end
 			end
@@ -424,8 +424,8 @@ module IterativeSG
 	############################################################################
 	# Class Merge is used for shape rules where two or more shapes are merged
 	# together. They can be merged either in x or y direction. For now it is
-	# limited to merge only closest shapes. This way it works more on a parametric
-	# principle...
+	# limited to merge only closest shapes. This way it works more on a
+	# parametric principle...
 	############################################################################
 	class Merge
 		include RulesBase
@@ -478,8 +478,8 @@ module IterativeSG
 				@face_material == nil
 			end
 		
-			# and we also need to remember it so we can load it at some later time...
-			# but only store it if it doesn't exist yet
+			# and we also need to remember it so we can load it at some
+			# later time... but only store it if it doesn't exist yet
 			type = ['type', @isg_type]
 			merge_in_x = ['merge_in_x', @merge_in_x]
 			merge_in_y = ['merge_in_y', @merge_in_y]
@@ -507,7 +507,8 @@ module IterativeSG
 		# Notes:
 		# TODO: add shape checking to see if some newly generated shapes are 
 		# the same as existing ones. If so, do not generate new ones but only
-		# create new instance of existing component and apply correct transformation.
+		# create new instance of existing component and apply correct
+		# transformation.
 		# We might want to do this using specification from which shapes new
 		# shape is generated.
 		# 
@@ -548,11 +549,11 @@ module IterativeSG
 			shapes.delete Controller.boundary_component
 			
 			# pick leftmost shape
-			sorted_shapes = Array.new
+			sorted_shps = Array.new
 			if @merge_in_x == true
-				sorted_shapes = Geometry::sort_components_in_direction(shapes, :x)
+				sorted_shps = Geometry::sort_components_in_direction(shapes, :x)
 			else
-				sorted_shapes = Geometry::sort_components_in_direction(shapes, :y)
+				sorted_shps = Geometry::sort_components_in_direction(shapes, :y)
 			end
 			# define direction from left to right or from bottom up
 			direction = Geom::Vector3d.new 1,0,0
@@ -560,12 +561,12 @@ module IterativeSG
 				direction = Geom::Vector3d.new 0,1,0
 			end
 			# do preliminary check
-			candidates = self.collect_candidate_shapes(sorted_shapes, direction, true)
+			candidates = self.collect_candidate_shapes(sorted_shps, direction, true)
 			return false if candidates == nil
 			
 			result = true
 			candidates.each do |cand|
-				result = false unless sorted_shapes.include? cand
+				result = false unless sorted_shps.include? cand
 			end
 			return candidates
 		end
@@ -584,9 +585,9 @@ module IterativeSG
 		# Notes:
 		# TODO: add shape checking to see if some newly generated shapes are 
 		# the same as existing ones. If so, do not generate new ones but only
-		# create new instance of existing component and apply correct transformation.
-		# We might want to do this using specification from which shapes new
-		# shape is generated.
+		# create new instance of existing component and apply correct
+		# transformation. We might want to do this using specification from
+		# which shapes new shape is generated.
 		# 
 		# Returns:
 		# List of candidate shapes to be merged.
@@ -628,7 +629,7 @@ module IterativeSG
 			num = @num_of_objects - 1
 			until shapes.empty? == false
 				instance = 0
-				# we need to skip random in case when check_rule method is called
+				# skip randomizing in case when check_rule method is called
 				if skip_random == false
 					instance = instances[rand(instances.length)]
 				else

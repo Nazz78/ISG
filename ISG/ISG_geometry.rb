@@ -215,8 +215,8 @@ module IterativeSG
 		# True if two groups are identical, False otherwise.
 		########################################################################
 		def Geometry::identical?(entity_1, entity_2)
-			# most of the shapes do not match, so skip all other if their position
-			# is not the same.
+			# most of the shapes do not match, so skip all 
+			# ther if their position is not the same.
 			# TODO maybe we should improve this?
 			return false if entity_1.position != entity_2.position
 
@@ -257,7 +257,8 @@ module IterativeSG
 		# Accepts:
 		# name - name of new shape
 		# points - list of 3D points from which convex face will be created
-		# material - material to be applied to face
+		# f_material - material to be applied to face
+		# e_material - material to be applied to edges
 		# 
 		# Notes:
 		# For now this method creates only convex faces.
@@ -265,20 +266,21 @@ module IterativeSG
 		# Returns:
 		# New ComponentInstance object.
 		########################################################################
-		def Geometry::add_face_in_component(name, points, face_material = nil,
-			edge_material = nil)
+		def Geometry::add_face_in_component(name, points, f_material = nil,
+			e_material = nil)
 			# Create group and fill it with face
-			comp_definition = Sketchup.active_model.definitions.add(name)
+			model = Sketchup.active_model
+			comp_definition = model.definitions.add(name)
 
 			ordered_points = convex_hull(points)
 			face = comp_definition.entities.add_face(ordered_points)
 
 			# face normal up!
 			face.reverse! if face.normal.z < 0
-			face.material = face_material unless face_material == nil
-			face.edges.each {|e| e.material = edge_material} unless edge_material == nil
+			face.material = f_material unless f_material == nil
+			face.edges.each {|e| e.material = e_material} unless e_material == nil
 			# add it to the model
-			return Sketchup.active_model.entities.add_instance(comp_definition, [0,0,0])	
+			return model.entities.add_instance(comp_definition, [0,0,0])	
 		end
 		
 		########################################################################	

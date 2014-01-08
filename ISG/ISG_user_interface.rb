@@ -40,7 +40,7 @@ module IterativeSG
 					ISGC::prepare_model
 				end
 			
-				# add separator ====================================================
+				# add separator ================================================
 				isg_tool_menu.add_separator
 			
 				isg_tool_menu.add_item('Initialize Controller') do
@@ -56,7 +56,7 @@ module IterativeSG
 					self.initialize_controller
 					apply_rule
 				end
-				# add separator ====================================================
+				# add separator ================================================
 				isg_tool_menu.add_separator
 			
 				# add rule definition related methods
@@ -74,7 +74,7 @@ module IterativeSG
 					self.initialize_controller
 					define_replace_rule()
 				end
-				# add separator ====================================================
+				# add separator ================================================
 				isg_tool_menu.add_separator
 				
 				isg_tool_menu.add_item('Define Merge Rule') do
@@ -83,7 +83,7 @@ module IterativeSG
 					define_merge_rule()
 				end
 				
-				# add separator ====================================================
+				# add separator ================================================
 				isg_tool_menu.add_separator
 				isg_tool_menu.add_item('Show ISG Window') do
 					UI_Window::initialize
@@ -97,8 +97,10 @@ module IterativeSG
 		########################################################################	
 		private
 			
-		####################################################################
-		# Open UI with options to generate design.
+		########################################################################
+		# Open UI with options to generate design. Options include number of
+		# rule applications, rules which will be applied and timeout to
+		# finish some methods if they would take too long to compute...
 		# 
 		# Accepts:
 		# Nothing.
@@ -108,7 +110,7 @@ module IterativeSG
 		# Returns:
 		# It returns false when something is wrong, otherwise it initializes
 		# generation of design.
-		####################################################################
+		########################################################################
 		def UI_Menu::generate_sg_design
 			prompts = ["Number of rule applicaitons: ", "Rules applied: ","Set timeout timer (in seconds): "]
 			controller_rules = Controller.rules.keys
@@ -151,17 +153,19 @@ module IterativeSG
 			Controller::generate_design(@ui_iterations, rules_used, @ui_seconds)
 		end
 
-		####################################################################
-		# Open UI with options to define Replace rule object.
+		########################################################################
+		# Open UI with options to define Replace rule object. To use this rule
+		# just pick some components (in 3D window) between which this rule can
+		# be applied and select it from UI.
 		# 
 		# Accepts:
-		# Nothing.
+		# Nothing, rule picks up selected objets upon definition.
 		# 
 		# Notes:
 		# 
 		# Returns:
 		# It returns new rule object if created or false otherwise.
-		####################################################################
+		########################################################################
 		def UI_Menu::define_replace_rule
 			prompts = ["Define New Rule Name: ",
 				"Mirror in X direction: ", "Mirror in Y direction"]
@@ -192,7 +196,7 @@ module IterativeSG
 			end
 		end
 
-		####################################################################
+		########################################################################
 		# Open UI with options to define Merge rule object.
 		# 
 		# Accepts:
@@ -202,7 +206,7 @@ module IterativeSG
 		# 
 		# Returns:
 		# It returns new rule object if created or false otherwise.
-		####################################################################
+		########################################################################
 		def UI_Menu::define_merge_rule
 			# first check if shape definitions are selected
 			shape_definitions = Array.new
@@ -244,12 +248,18 @@ module IterativeSG
 		end
 		
 		########################################################################
-		# Open UI window for applying rule to selected shapes.
+		# Open UI window for applying rule to selected shapes. If more rules
+		# can be applied to specific selection, first window asks which rule to
+		# apply. User selects it by typing some value into corresponding input
+		# text field. If there are many entries, only the first rule in list will 
+		# be applied. Once rule is selected, user can specify in which direction
+		# to apply it when mirroring option exists in the rule.
 		# 
 		# Accepts:
 		# Nothing.
 		# 
 		# Notes:
+		# Rule selection UI should be improved with dropdown.
 		# 
 		# Returns:
 		# Applies new rule to selection or false when rule can not be applied.
@@ -304,7 +314,7 @@ Also make sure selected shapes are inside boundary.", MB_OK
 
 				rule = Controller::rules[prompts[selected_rule_index[0]]]
 			else
-				rule = Controller::rules[candidates_hash.key]
+				rule = Controller::rules[candidates_hash.keys.first]
 			end
 			shapes = candidates_hash[rule.rule_ID]
 			
@@ -377,9 +387,9 @@ Also make sure selected shapes are inside boundary.", MB_OK
 		end
 	end
 	
-	################################################################################
+	############################################################################
 	# User interface window for Iterative Shape Grammars.
-	################################################################################
+	############################################################################
 	class UI_Window
 		# make it singleton, so it is not repeated.
 		private_class_method :new

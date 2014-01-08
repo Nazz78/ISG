@@ -62,7 +62,7 @@ module IterativeSG
 			if boundary_component.is_a? Sketchup::ComponentInstance and
 				  boundary_component.definition.name.include? 'Boundary'
 				# do nothing, all seems OK
-			# if boundary component is not selected, try to guess it
+				# if boundary component is not selected, try to guess it
 			else
 				components = Sketchup.active_model.entities.select { |ent|
 					ent.is_a? Sketchup::ComponentInstance }
@@ -127,7 +127,8 @@ module IterativeSG
 		# Returns:
 		# True once generation finishes.
 		########################################################################		
-		def Controller::generate_design(num_of_applications, rules = @rules.keys, timeout = 20)
+		def Controller::generate_design(num_of_applications,
+				rules = @rules.keys, timeout = 20)
 			begin
 				Sketchup.active_model.start_operation 'Generate design', false, false, false
 			rescue
@@ -155,8 +156,8 @@ module IterativeSG
 				when IterativeSG::Replace
 					# find appropriate candidates for specified rule
 					original_shape_array = rule.collect_candidate_shapes
-					# exit if there is no candidate for this rule and also remove
-					# the rule from list of rules
+					# exit if there is no candidate for this rule
+					# and also remove the rule from list of rules
 					if original_shape_array == nil
 						@temp_rules.delete rule_id
 						next 
@@ -171,16 +172,17 @@ module IterativeSG
 					# now apply the rule
 					new_shapes = rule.send(:apply_rule, false,
 						original_shape_array, mirror_x, mirror_y)
-					# if new_shapes is false, it means that rule application did not
-					# change the design (all new shapes were identical to some already
-					# exising). We therefore reapply it with inverse mirroring
-					# and set the mark_rule flag, so it will remember that this rule
-					# should not be used on this shape anymore. At the moment this
-					# is OK only for shape rules with 1 mirror axis.
-					# TODO improve for shapes with no mirror axis or with 2 mirror axis!
+					# if new_shapes is false, it means that rule application
+					# did not change the design (all new shapes were identical
+					# to some already\ exising). We therefore reapply it with
+					# inverse mirroring and set the mark_rule flag, so it will
+					# remember that this rule should not be used on this shape
+					# anymore. At the moment this is OK only for shape rules
+					# with 1 mirror axis. TODO improve for shapes with no
+					# mirror axis or with 2 mirror axis!
 					if new_shapes == false and @temp_original_shape != nil
 						new_shapes = rule.send(:apply_rule, true, 
-						@temp_original_shape, (mirror_x * -1), (mirror_y * -1))
+							@temp_original_shape, (mirror_x * -1), (mirror_y * -1))
 					end
 					# exit if timeout is reached
 					if (Time.now.to_f - timer) > timeout
