@@ -19,7 +19,7 @@ module IterativeSG
 		# we need to expose original @shape so collect_candidate_shapes method
 		# can find all instances of object being replaced.
 		attr_reader :rule_ID ,:shape, :isg_type
-		attr_reader :requested_objects
+		attr_reader :requested_objects, :mirror_x, :mirror_y
 		
 		def find_by_ID(rule_ID)
 			

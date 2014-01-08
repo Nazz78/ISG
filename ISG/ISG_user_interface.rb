@@ -266,39 +266,46 @@ Also make sure selected shapes are inside boundary.", MB_OK
 				return false
 			end
 			
-			candidates_array = candidates_hash.to_a
-			candidates_array.sort!
-			
-			prompts = Array.new
-			# we know that the first item in array is rule_ID
-			candidates_hash.each do |candidate|
-				# prepare inputbox string
-				rule_type = Controller.rules[candidate[0]].isg_type
-				prompts << candidate[0]
-			end
-			# leave defaults empty
-			defaults = Array.new
-			input = UI.inputbox prompts, defaults, "Apply ISG Rule"
-			return false if input == false
+			# now define rule to be applied.
+			# ask user only if more than one rule can be applied...
+			rule = nil
+			if candidates_hash.length > 1
+				candidates_array = candidates_hash.to_a
+				candidates_array.sort!
 
-			# Now find out which rule was selected, if more rules were defined
-			# select the first one
-			selected_rule_index = Array.new
-			input.each do |indx|
-				selected_rule_index << input.index(indx) if indx != ''
+				prompts = Array.new
+				# we know that the first item in array is rule_ID
+				candidates_hash.each do |candidate|
+					# prepare inputbox string
+					rule_type = Controller.rules[candidate[0]].isg_type
+					prompts << candidate[0]
+				end
+				# leave defaults empty
+				defaults = Array.new
+				input = UI.inputbox prompts, defaults, "Apply ISG Rule"
+				return false if input == false
+
+				# Now find out which rule was selected, if more rules were defined
+				# select the first one
+				selected_rule_index = Array.new
+				input.each do |indx|
+					selected_rule_index << input.index(indx) if indx != ''
+				end
+				# make sure there are no empty values in array...
+				selected_rule_index.compact!
+
+				if selected_rule_index.length > 1
+					UI.messagebox "Please select just one rule.", MB_OK
+					return false
+				elsif selected_rule_index.empty?
+					UI.messagebox "Please select rule by inserting some value (eg. 1) in appropriate text field.", MB_OK
+					return false
+				end
+
+				rule = Controller::rules[prompts[selected_rule_index[0]]]
+			else
+				rule = Controller::rules[candidates_hash.key]
 			end
-			# make sure there are no empty values in array...
-			selected_rule_index.compact!
-			
-			if selected_rule_index.length > 1
-				UI.messagebox "Please select just one rule.", MB_OK
-				return false
-			elsif selected_rule_index.empty?
-				UI.messagebox "Please select rule by inserting some value (eg. 1) in appropriate text field.", MB_OK
-				return false
-			end
-			
-			rule = Controller::rules[prompts[selected_rule_index[0]]]
 			shapes = candidates_hash[rule.rule_ID]
 			
 			# now apply the rule as needed
@@ -306,11 +313,30 @@ Also make sure selected shapes are inside boundary.", MB_OK
 			Sketchup.active_model.start_operation "Apply rule", false, true, false
 			case rule
 			when IterativeSG::Replace
-				mirror_x = mirror_y = 1
-				resulting_shapes = rule.apply_rule(false, shapes, mirror_x, mirror_y)
+				prompts = Array.new
+				prompts << "Direction in X: " if rule.mirror_x
+				prompts << "Direction in Y: " if rule.mirror_y
+				
+				mir_x = 1
+				mir_y = 1
+				
+				unless prompts.empty?
+					# improve defaults declaration
+					defaults = [mir_x, mir_y]
+					input = UI.inputbox prompts, defaults, "Spec. #{rule.rule_ID} direction"
+					# since we are working with only two options, we can simplify
+					# a bit - x will always be first input, y last...
+					mir_x = input.first if rule.mirror_x
+					mir_y = input.last if rule.mirror_y
+				end			
+				
+				resulting_shapes = rule.apply_rule(false, shapes, mir_x, mir_y)
 				if resulting_shapes == false
-					mirror_x = mirror_y = -1
-					rule.apply_rule(true, shapes, mirror_x, mirror_y)
+					# inverse directions
+					mir_x *= -1
+					mir_y *= -1
+					rule.apply_rule(true, shapes, mir_x, mir_y)
+					UI.messagebox "Rule was applied in oposite direction since specified was already taken...", MB_OK
 				end
 			when IterativeSG::Merge
 				resulting_shapes = rule.apply_rule(shapes)
