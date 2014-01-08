@@ -238,7 +238,7 @@ module IterativeSG
 		# Returns:
 		# New rule object.
 		########################################################################	
-		def Controller::define_rule(spec_hash)	
+		def Controller::define_rule(spec_hash)
 			case spec_hash['type']
 			when 'Replace'
 				spec_hash['origin'] = @temp_origin if spec_hash['origin'] == nil
@@ -246,6 +246,11 @@ module IterativeSG
 				spec_hash['origin_new'] = @temp_origin_new if spec_hash['origin_new'] == nil
 				spec_hash['shape_new'] = @temp_shape_new if spec_hash['shape_new'] == nil
 				@rules[spec_hash['rule_ID']] = Replace.new(spec_hash)
+				# puts shapes to rules layer
+				spec_hash['origin'].layer = @rules_layer
+				spec_hash['shape'].each {|comp| comp.layer = @rules_layer}
+				spec_hash['origin_new'].layer = @rules_layer
+				spec_hash['shape_new'].each {|comp| comp.layer = @rules_layer}
 			when 'Merge'
 				@rules[spec_hash['rule_ID']] = Merge.new(spec_hash)
 			end
