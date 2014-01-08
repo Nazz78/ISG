@@ -489,7 +489,7 @@ module IterativeSG
 			# maybe user forgot to put shapes inside boundary
 			entity.update_shape
 			if Geometry::inside_boundary?(entity.position, entity.points) == true
-				entity.layer = @solution_layer
+				entity.layer = @solution_layer unless entity.layer == @hidden_layer
 			end
 
 			@UIDs << shp_uid
