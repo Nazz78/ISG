@@ -435,7 +435,6 @@ module IterativeSG
 			@rules.each_pair do |rule_ID, rule_object|
 				# next if selection doesn't match
 				shapes = rule_object.check_rule(selection)
-				puts shapes.inspect
 				rule_selection_hash[rule_ID] = shapes unless shapes == false
 			end
 			if rule_selection_hash.empty?

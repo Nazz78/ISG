@@ -36,22 +36,26 @@ module IterativeSG
 				isg_tool_menu = tool_menu.add_submenu("ISG")
 
 				# Open template with all layers, markers, boundaries, ... defined.
-				isg_tool_menu.add_item('Open ISG template') do
+				isg_tool_menu.add_item('Open Template') do
 					ISGC::prepare_model
 				end
 			
 				# add separator ====================================================
 				isg_tool_menu.add_separator
 			
-				isg_tool_menu.add_item('Initialize ISG Controller') do
+				isg_tool_menu.add_item('Initialize Controller') do
 					Controller::initialize(Sketchup.active_model.selection[0])
 				end
-				isg_tool_menu.add_item('Generate SG Design') do
+				isg_tool_menu.add_item('Generate Design') do
 					# initialize controller if it is not initialized already
 					self.initialize_controller
 					generate_sg_design
 				end
-			
+				isg_tool_menu.add_item('Apply Rule') do
+					# initialize controller if it is not initialized already
+					self.initialize_controller
+					apply_rule
+				end
 				# add separator ====================================================
 				isg_tool_menu.add_separator
 			
@@ -238,6 +242,81 @@ module IterativeSG
 				end
 			end
 		end
+		
+		########################################################################
+		# Open UI window for applying rule to selected shapes.
+		# 
+		# Accepts:
+		# Nothing.
+		# 
+		# Notes:
+		# 
+		# Returns:
+		# Applies new rule to selection or false when rule can not be applied.
+		########################################################################
+		def UI_Menu::apply_rule(selection = Sketchup.active_model.selection.to_a)
+			if selection.empty?
+				UI.messagebox "Please select some shapes to find appropriate rules.", MB_OK
+				return false
+			end
+			candidates_hash = Controller::find_candidate_rules(selection)
+			if candidates_hash == false
+				UI.messagebox "No rule can be applied to selected shapes.
+Also make sure selected shapes are inside boundary.", MB_OK
+				return false
+			end
+			
+			candidates_array = candidates_hash.to_a
+			candidates_array.sort!
+			
+			prompts = Array.new
+			# we know that the first item in array is rule_ID
+			candidates_hash.each do |candidate|
+				# prepare inputbox string
+				rule_type = Controller.rules[candidate[0]].isg_type
+				prompts << candidate[0]
+			end
+			# leave defaults empty
+			defaults = Array.new
+			input = UI.inputbox prompts, defaults, "Apply ISG Rule"
+			return false if input == false
+
+			# Now find out which rule was selected, if more rules were defined
+			# select the first one
+			selected_rule_index = Array.new
+			input.each do |indx|
+				selected_rule_index << input.index(indx) if indx != ''
+			end
+			# make sure there are no empty values in array...
+			selected_rule_index.compact!
+			
+			if selected_rule_index.length > 1
+				UI.messagebox "Please select just one rule.", MB_OK
+				return false
+			elsif selected_rule_index.empty?
+				UI.messagebox "Please select rule by inserting some value (eg. 1) in appropriate text field.", MB_OK
+				return false
+			end
+			
+			rule = Controller::rules[prompts[selected_rule_index[0]]]
+			shapes = candidates_hash[rule.rule_ID]
+			
+			# now apply the rule as needed
+			Sketchup.active_model.start_operation "Apply rule", false, true, false
+			case rule
+			when IterativeSG::Replace
+				puts 'replace'
+			
+				
+			when IterativeSG::Merge
+				rule.apply_rule(shapes)
+			end
+
+			Sketchup.active_model.commit_operation
+			#rule.send(:apply_rule, false, original_shape_array, mirror_x, mirror_y)
+			
+		end
+
 		########################################################################
 		# Check if Controller is properly initialized, if not, itnitialize it.
 		# 

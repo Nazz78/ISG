@@ -18,7 +18,7 @@ module IterativeSG
 	module RulesBase
 		# we need to expose original @shape so collect_candidate_shapes method
 		# can find all instances of object being replaced.
-		attr_reader :rule_ID ,:shape
+		attr_reader :rule_ID ,:shape, :isg_type
 		attr_reader :requested_objects
 		
 		def find_by_ID(rule_ID)
@@ -61,6 +61,7 @@ module IterativeSG
 			@shape_new = specification_hash['shape_new']
 			@mirror_x = specification_hash['mirror_x']
 			@mirror_y = specification_hash['mirror_y']
+			@isg_type = 'Replace'
 			# also store shape definitions that are used by this rule
 			@shape_definitions = Array.new
 			
@@ -107,7 +108,7 @@ module IterativeSG
 			
 			# and we also need to remember it so we
 			# can load it at some later time...
-			type = ['type', 'Replace']
+			type = ['type', @isg_type]
 			origin_uid = ['origin_uid', origin_uid]
 			shape_uid = ['shape_uid', shape_uid]
 			origin_new_uid = ['origin_new_uid', origin_new_uid]
@@ -364,6 +365,7 @@ module IterativeSG
 
 				# now collect only those in solution layer
 				shapes =  instances.select {|shp| shp.layer == @solution_layer}
+				return nil if instances.empty?
 
 				# we need to find only one, which is not marked with rule. If
 				# rule is marked it means it can not be applied anymore!
@@ -459,6 +461,8 @@ module IterativeSG
 			@max_distance = 1_000.m
 			# list of shape definitions on which it works
 			@shape_definitions = specification_hash['shape_definitions']
+			# specify type for easier acces
+			@isg_type = 'Merge'
 			
 			# define face material based on selection
 			edges = @shape_definitions[0].entities.select {|ent| ent.is_a? Sketchup::Edge}
@@ -476,7 +480,7 @@ module IterativeSG
 		
 			# and we also need to remember it so we can load it at some later time...
 			# but only store it if it doesn't exist yet
-			type = ['type', 'Merge']
+			type = ['type', @isg_type]
 			merge_in_x = ['merge_in_x', @merge_in_x]
 			merge_in_y = ['merge_in_y', @merge_in_y]
 			num_of_objects = ['num_of_objects', @num_of_objects]
@@ -615,6 +619,7 @@ module IterativeSG
 					
 			# limit to those in solution layer
 			instances = instances.select {|i| i.layer == @solution_layer}
+			return nil if instances.empty?
 			# make copy
 			candidates = instances.clone
 			
