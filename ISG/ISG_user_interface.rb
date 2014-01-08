@@ -302,19 +302,23 @@ Also make sure selected shapes are inside boundary.", MB_OK
 			shapes = candidates_hash[rule.rule_ID]
 			
 			# now apply the rule as needed
+			resulting_shapes = Array.new
 			Sketchup.active_model.start_operation "Apply rule", false, true, false
 			case rule
 			when IterativeSG::Replace
-				puts 'replace'
-			
-				
+				mirror_x = mirror_y = 1
+				resulting_shapes = rule.apply_rule(false, shapes, mirror_x, mirror_y)
+				if resulting_shapes == false
+					mirror_x = mirror_y = -1
+					rule.apply_rule(true, shapes, mirror_x, mirror_y)
+				end
 			when IterativeSG::Merge
-				rule.apply_rule(shapes)
+				resulting_shapes = rule.apply_rule(shapes)
 			end
 
 			Sketchup.active_model.commit_operation
 			#rule.send(:apply_rule, false, original_shape_array, mirror_x, mirror_y)
-			
+			return resulting_shapes
 		end
 
 		########################################################################
