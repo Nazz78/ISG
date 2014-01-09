@@ -257,6 +257,8 @@ module IterativeSG
 				spec_hash['shape_new'].each {|comp| comp.layer = @rules_layer}
 			when 'Merge'
 				@rules[spec_hash['rule_ID']] = Merge.new(spec_hash)
+			when 'Stretch'
+				@rules[spec_hash['rule_ID']] = Stretch.new(spec_hash)
 			end
 			return @rules[spec_hash['rule_ID']]
 		end

@@ -693,4 +693,68 @@ module IterativeSG
 			return shapes
 		end
 	end
+	
+	############################################################################
+	# Class Stretch is used for rules which stretch shapes in x or y direction.
+	# Since it's parametric it can be used on any shape, only min and max
+	# strech dimensions should be provided when initialized and applied.
+	############################################################################
+	class Stretch
+		include RulesBase
+
+		########################################################################
+		# Initialize merge rule object and populate it with needed information.
+		# 
+		# Accepts:
+		# specification_hash where:
+		# rule_ID - defines the name of the rule
+		# stretch_in_x - stretch shapes in x (horizontal) direction
+		# stretch_in_y - stretch shapes in y (vertical) direction
+		# min_stretch - min value when shrinking shape
+		# max_stretch - max value when strething shape
+		# constrain_conecting - if true, shapes that connect to shape beeing
+		# stretched will be adjusted. if false only one shape will be strethed.
+		# shape_definitions - specifies which shapes can be stretched. If this
+		# is not specified, rule can stretch any shape.
+		# 
+		# 
+		# Notes:
+		# 
+		# Returns:
+		# New object created.
+		########################################################################
+		def initialize(specification_hash)
+			# define variables
+			@dictionary = Controller.dict_rules
+			@solution_layer = Controller.solution_layer
+			@isg_type = specification_hash['Stretch']
+			@rule_ID = specification_hash['rule_ID']
+			@stretch_in_x = specification_hash['stretch_in_x']
+			@stretch_in_y = specification_hash['stretch_in_y']
+			@min_stretch = specification_hash['min_stretch']
+			@max_stretch = specification_hash['max_stretch']
+			@constrain_connecting = specification_hash['constrain_connecting']
+			@shape_definitions = specification_hash['shape_definitions']
+
+			
+			# prepare them for dict storage
+			type = ['type', @isg_type]
+			stretch_in_x = ['stretch_in_x', @stretch_in_x]
+			stretch_in_y = ['stretch_in_y', @stretch_in_y]
+			min_stretch = ['min_stretch', @min_stretch]
+			max_stretch = ['max_stretch', @max_stretch]
+			definition_names = Array.new
+			constrain_connecting = ['constrain_connecting', @constrain_connecting]
+			@shape_definitions.each do |definition|
+					definition_names << definition.name
+			end
+			shape_definitions = ['shape_definitions_names', definition_names]
+			
+			# now store them to dictionary
+			@dictionary[@rule_ID] = Array.new
+			@dictionary[@rule_ID] = [type, stretch_in_x, stretch_in_y,
+				min_stretch, max_stretch, shape_definitions, constrain_connecting]
+			return self
+		end
+	end
 end

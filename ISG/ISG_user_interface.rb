@@ -91,6 +91,12 @@ module IterativeSG
 					define_merge_rule()
 				end
 				
+				isg_tool_menu.add_item('Define Stretch Rule') do
+					# initialize controller if it is not initialized already
+					self.initialize_controller
+					define_stretch_rule()
+				end
+				
 				# add separator ================================================
 				isg_tool_menu.add_separator
 				isg_tool_menu.add_item('Show ISG Window') do
@@ -271,7 +277,7 @@ module IterativeSG
 			prompts = ["Define New Rule Name: ",
 				"Mirror in X direction: ", "Mirror in Y direction"]
 			defaults = [Controller::generate_rule_name,	false, false]
-			input = UI.inputbox prompts, defaults, "Declare New ISG Rule"
+			input = UI.inputbox prompts, defaults, "Declare New ISG Replace Rule"
 
 			if IterativeSG::Controller.rules.keys.include? input[0]
 				overload = UI.messagebox "Rule with this name already exists. Do you want to replace it?", MB_YESNO
@@ -320,9 +326,9 @@ module IterativeSG
 			else
 
 				prompts = ["Define New Rule Name: ", "Merge in X direction: ",
-					"Merge in Y direction: ", "Shapes to merge: "]
+					"Merge in Y direction: ", "Num. of shapes to merge: "]
 				defaults = [Controller::generate_rule_name,	true, false, 2]
-				input = UI.inputbox prompts, defaults, "Declare New ISG Rule"
+				input = UI.inputbox prompts, defaults, "Declare New ISG Merge Rule"
 
 				if IterativeSG::Controller.rules.keys.include? input[0]
 					overload = UI.messagebox "Rule with this name already exists. Do you want to replace it?", MB_YESNO
@@ -346,6 +352,49 @@ module IterativeSG
 					return Controller::define_rule(spec_hash)
 				end
 			end
+		end
+		
+		def UI_Menu::define_stretch_rule
+			# first check if shape definitions are selected
+			shape_definitions = Array.new
+			selection = Sketchup.active_model.selection.to_a
+			shape_instances = selection.select {|ent| ent.definition.name.include? 'Shape'}
+			shape_instances.uniq!
+			shape_instances.each { |ent| shape_definitions << ent.definition }
+			# set it to nil if no shapes are selected. If so, the rule will
+			# be applied to any shape
+			shape_definitions == nil if shape_definitions.empty?
+			
+			prompts = ["Define New Rule Name: ", "Stretch in X direction: ",
+				"Stretch in Y direction: ", "Min stretch: ", "Max stretch",
+				"Keep connecting shapes together: "]
+			
+			defaults = [Controller::generate_rule_name,	true, false, 0.5, 1.5, true]
+			input = UI.inputbox prompts, defaults, "Declare New ISG Stretch Rule"
+
+				if IterativeSG::Controller.rules.keys.include? input[0]
+					overload = UI.messagebox "Rule with this name already exists. Do you want to replace it?", MB_YESNO
+				end
+				
+				if overload == 7 # 6=YES, 7=NO
+					puts "Rule not being created"
+					return false
+				else
+					stretch_in_x = (input[1] == 'true' or input[1] == 'True' or input[1] == '1')
+					stretch_in_y = (input[2] == 'true' or input[2] == 'True' or input[2] == '1')
+
+					spec_hash = Hash.new
+					spec_hash['type'] = 'Stretch'
+					spec_hash['rule_ID'] = input[0]
+					spec_hash['stretch_in_x'] = stretch_in_x
+					spec_hash['stretch_in_x'] = stretch_in_y
+					spec_hash['min_stretch'] = input[3]
+					spec_hash['max_stretch'] = input[4]
+					spec_hash['constrain_connecting'] = input[5]
+					spec_hash['shape_definitions'] = shape_definitions
+
+					return Controller::define_rule(spec_hash)
+				end
 		end
 		
 		########################################################################
