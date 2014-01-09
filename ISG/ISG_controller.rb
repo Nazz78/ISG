@@ -665,10 +665,11 @@ module IterativeSG
 					elsif key.include? 'shape_definitions_names'
 						values = Array.new
 						defs = Sketchup.active_model.definitions
-						if value != nil
+						# when empty array is stored in dict, it returns nil value...
+						unless value == nil
 							values = defs.select { |d| value.include?(d.name)}
-							rules_hash['shape_definitions'] = values
 						end
+						rules_hash['shape_definitions'] = values
 					end
 				end
 				self.define_rule(rules_hash)

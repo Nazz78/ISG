@@ -727,7 +727,7 @@ module IterativeSG
 			# define variables
 			@dictionary = Controller.dict_rules
 			@solution_layer = Controller.solution_layer
-			@isg_type = specification_hash['Stretch']
+			@isg_type = 'Stretch'
 			@rule_ID = specification_hash['rule_ID']
 			@stretch_in_x = specification_hash['stretch_in_x']
 			@stretch_in_y = specification_hash['stretch_in_y']
@@ -743,8 +743,9 @@ module IterativeSG
 			stretch_in_y = ['stretch_in_y', @stretch_in_y]
 			min_stretch = ['min_stretch', @min_stretch]
 			max_stretch = ['max_stretch', @max_stretch]
-			definition_names = Array.new
+		
 			constrain_connecting = ['constrain_connecting', @constrain_connecting]
+			definition_names = Array.new
 			@shape_definitions.each do |definition|
 					definition_names << definition.name
 			end
@@ -811,8 +812,10 @@ module IterativeSG
 		# Random shape to which rule will be applied.
 		########################################################################
 		def collect_candidate_shapes
-			shapes = Controller.solution_shapes
-			return shapes[rand(shapes.length)]
+			if @shape_definitions.empty?
+				shapes = Controller.solution_shapes
+				return shapes[rand(shapes.length)]
+			end
 		end
 		
 		########################################################################
