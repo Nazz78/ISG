@@ -209,6 +209,26 @@ module IterativeSG
 					end
 
 					new_shapes = rule.send(:apply_rule, shapes_to_merge)
+				when IterativeSG::Stretch
+					shape = rule.collect_candidate_shapes
+					# exit if timeout is reached
+					if (Time.now.to_f - timer) > timeout
+						# round timeout to two decimals
+						application_counter = 0
+					end
+					
+					# next if shapes_to_merge.empty?
+					if shape == nil
+						application_counter = 0
+						next
+					end
+					
+					# calculate random stretch factor
+					# 0 is @min_stretch value, 10 is @max_stretch value
+					factor_x = rand(10)
+					factor_y = rand(10)
+					
+					new_shapes = rule.send(:apply_rule, shape, factor_x, factor_y)
 				end
 				
 				Sketchup.active_model.active_view.refresh
@@ -645,8 +665,10 @@ module IterativeSG
 					elsif key.include? 'shape_definitions_names'
 						values = Array.new
 						defs = Sketchup.active_model.definitions
-						values = defs.select { |d| value.include?(d.name)}
-						rules_hash['shape_definitions'] = values
+						if value != nil
+							values = defs.select { |d| value.include?(d.name)}
+							rules_hash['shape_definitions'] = values
+						end
 					end
 				end
 				self.define_rule(rules_hash)

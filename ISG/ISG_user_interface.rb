@@ -369,7 +369,7 @@ module IterativeSG
 				"Stretch in Y direction: ", "Min stretch: ", "Max stretch",
 				"Keep connecting shapes together: "]
 			
-			defaults = [Controller::generate_rule_name,	true, false, 0.5, 1.5, true]
+			defaults = [Controller::generate_rule_name,	false, true, 0.5, 1.5, true]
 			input = UI.inputbox prompts, defaults, "Declare New ISG Stretch Rule"
 
 				if IterativeSG::Controller.rules.keys.include? input[0]
@@ -387,7 +387,7 @@ module IterativeSG
 					spec_hash['type'] = 'Stretch'
 					spec_hash['rule_ID'] = input[0]
 					spec_hash['stretch_in_x'] = stretch_in_x
-					spec_hash['stretch_in_x'] = stretch_in_y
+					spec_hash['stretch_in_y'] = stretch_in_y
 					spec_hash['min_stretch'] = input[3]
 					spec_hash['max_stretch'] = input[4]
 					spec_hash['constrain_connecting'] = input[5]

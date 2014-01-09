@@ -756,5 +756,80 @@ module IterativeSG
 				min_stretch, max_stretch, shape_definitions, constrain_connecting]
 			return self
 		end
+		
+		########################################################################
+		# Apply the rule to specified shapes.
+		# 
+		# Accepts:
+		# shape - shape that will be stretched
+		# factor_x - factor of how much should the shape be stretched in x direction
+		# factor_y - factor of how much should the shape be stretched in y direction
+		#  
+		# Notes:
+		# factor is something between 0 and 10
+		# 
+		# Returns:
+		# New shape which is a result of rule application.
+		########################################################################
+		def apply_rule(shape, factor_x = 1, factor_y = 1)
+			# get original transformation in case we need to set it back
+			orig_trans = shape.transformation
+			# calculate stretch from factor
+			stretch_x = calculate_from_factor(factor_x)
+			stretch_y = calculate_from_factor(factor_y)
+			# make sure rule can be applied in this direction
+			stretch_x = 1 unless @stretch_in_x
+			stretch_y = 1 unless @stretch_in_y
+
+			# collect all information needed
+			position = shape.position
+			# stretch shape
+			Geometry::stretch_shape(shape, position, stretch_x, stretch_y)
+			# check that it is valid, if not set it back and return false
+			shape.update_shape()
+			if Geometry::inside_boundary?(shape.position, shape.points) == false
+				shape.transformation = orig_trans
+				return false
+			end
+			 # or add rule info to it, so it's not reapplied
+			shape.rules_applied << @rule_ID
+			# and return it
+			return shape
+		end
+		
+		########################################################################
+		# Pick random candidate from solution shapes.
+		# 
+		# Accepts:
+		# Nothing
+		# 
+		# Notes:
+		# TODO shape definitions should be added so user is able to apply this
+		# rule only to selected shapes.
+		# 
+		# Returns:
+		# Random shape to which rule will be applied.
+		########################################################################
+		def collect_candidate_shapes
+			shapes = Controller.solution_shapes
+			return shapes[rand(shapes.length)]
+		end
+		
+		########################################################################
+		# Helper method to calculate scale based on factor received and min and
+		# max values defined.
+		# 
+		# Accepts:
+		# factor - value between 0 and 10
+		# 
+		# Notes:
+		# 
+		# Returns:
+		# value between @min_stretch and @max_stretch.
+		########################################################################
+		def calculate_from_factor(factor)
+			diff = @max_stretch - @min_stretch
+			return (factor/10.0) * diff + @min_stretch
+		end
 	end
 end

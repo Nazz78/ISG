@@ -283,6 +283,30 @@ module IterativeSG
 			return model.entities.add_instance(comp_definition, [0,0,0])	
 		end
 		
+		########################################################################
+		# Stretch shape for specified dimension from received position point.
+		# 
+		# Accepts:
+		# entity - entity which is being stretched
+		# position - origin position of stretch
+		# xscale - how much should the shape be stretched in x direction
+		# yscale - how much should the shape be stretched in y direction
+		# 
+		# Notes:
+		# 
+		# Returns:
+		# True once stretch is done
+		########################################################################
+		def Geometry::stretch_shape(entity, position, xscale = 1, yscale = 1)
+			# Create transformation
+			stretch = Geom::Transformation.scaling position, xscale, yscale, 1
+			
+			# Apply transformation to shape
+			entity.transform! stretch
+			# add it to the model
+			return true
+		end
+		
 		########################################################################	
 		# PRIVATE METHODS BELOW!
 		########################################################################		
