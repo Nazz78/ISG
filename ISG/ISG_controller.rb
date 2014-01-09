@@ -804,4 +804,5 @@ module IterativeSG
 end
 
 # Once all scripts are loaded, we can add controller and UI
-IterativeSG::UI_Menu::create_menu
+IterativeSG::UI_Menu::add_menu
+IterativeSG::UI_Menu::add_context

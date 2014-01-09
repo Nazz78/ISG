@@ -27,7 +27,7 @@ module IterativeSG
 		# Returns:
 		# Menu object.
 		########################################################################
-		def UI_Menu::create_menu
+		def UI_Menu::add_menu
 			# remember ui entries
 			@ui_iterations = 120
 			@ui_seconds = 20
@@ -59,7 +59,10 @@ module IterativeSG
 				isg_tool_menu.add_item('Remove Rule') do
 					# initialize controller if it is not initialized already
 					self.initialize_controller
-					remove_rule
+					entities = check_for_remove_rule()
+					unless entities.empty?
+						remove_rule(entities)
+					end
 				end
 				# add separator ================================================
 				isg_tool_menu.add_separator
@@ -97,11 +100,104 @@ module IterativeSG
 			end
 		end
 
+		########################################################################
+		# Add context menu which shows only methods that can be applied to
+		# current selection. This is only example, which should be developed
+		# further
+		# 
+		# Accepts:
+		# Nothing
+		# 
+		# Notes:
+		# Each Component has a ID which is persistent when it is copied.
+		# 
+		# Returns:
+		# Nothing, it establishes contex menu handling.
+		########################################################################
+		def UI_Menu::add_context
+			unless @ISG_context
+				context_menu = UI.add_context_menu_handler do |menu|
+					selection = Sketchup.active_model.selection.to_a
+					menu.add_separator
+					isg_context_menu = menu.add_submenu('ISG')
+					
+					# add apply rule to context if some rules can be applied
+					candidates_hash = check_for_apply_rule
+					unless candidates_hash == false
+						isg_context_menu.add_item('Apply Rule') do
+							apply_rule
+						end
+					end
+					
+					# add remove rule to context if at least on rule can be removed
+					entities = check_for_remove_rule
+					unless entities.empty?
+						isg_context_menu.add_item('Remove Rule') do
+							# initialize controller if it is not initialized already
+							remove_rule(entities)
+						end
+					end
+
+				end
+				@ISG_menu = context_menu
+			end
+		end
 		########################################################################	
 		# PRIVATE METHODS BELOW!
 		########################################################################	
 		private
-			
+		
+		########################################################################
+		# Check if some rules can be applied to selected shapes. If so, return
+		# them, otherwise return false.
+		# 
+		# 
+		# Accepts:
+		# selection - optional. By default method itself checks current selection.
+		# 
+		# Notes:
+		# 
+		# Returns:
+		# Hash of rule-entities pairs to which rules can be applied.
+		########################################################################
+		def UI_Menu::check_for_apply_rule(selection = Sketchup.active_model.selection.to_a)
+			# Make sure controller is properly initialized
+			initialize_controller
+			if selection.empty?
+				return false
+			else
+				candidates_hash = Controller::find_candidate_rules(selection)
+				if candidates_hash == false
+					return false
+				else
+					return candidates_hash
+				end
+			end
+		end
+		
+		########################################################################
+		# Check if some of the selected entities can be reverted to previous
+		# state, that is to shapes which generated it by rule application.
+		# 
+		# 
+		# Accepts:
+		# selection - optional. By default method itself checks current selection.
+		# 
+		# Notes:
+		# 
+		# Returns:
+		# Array of entities which can be replaced by original shapes, that is
+		# ones from which this shape was generated.
+		########################################################################
+		def UI_Menu::check_for_remove_rule(selection = Sketchup.active_model.selection.to_a)
+			# Make sure controller is properly initialized
+			initialize_controller
+			# filter to only shapes which have stored erased entities
+			filter_1 = selection.select {|ent| ent.respond_to? :receive_erased_entites}
+			filter_2 = filter_1.select {|ent| ent.receive_erased_entites != nil }
+			return filter_2
+		end
+		
 		########################################################################
 		# Open UI with options to generate design. Options include number of
 		# rule applications, rules which will be applied and timeout to
@@ -272,197 +368,206 @@ module IterativeSG
 		def UI_Menu::apply_rule(selection = Sketchup.active_model.selection.to_a)
 			if selection.empty?
 				UI.messagebox "Please select some shapes to find appropriate rules.", MB_OK
-				return false
-			end
-			candidates_hash = Controller::find_candidate_rules(selection)
-			if candidates_hash == false
-				UI.messagebox "No rule can be applied to selected shapes.
+			return false
+		end
+		candidates_hash = Controller::find_candidate_rules(selection)
+		if candidates_hash == false
+			UI.messagebox "No rule can be applied to selected shapes.
 Also make sure selected shapes are inside boundary.", MB_OK
+			return false
+		end
+			
+		# now define rule to be applied.
+		# ask user only if more than one rule can be applied...
+		rule = nil
+		if candidates_hash.length > 1
+			candidates_array = candidates_hash.to_a
+			candidates_array.sort!
+
+			prompts = Array.new
+			# we know that the first item in array is rule_ID
+			candidates_hash.each do |candidate|
+				# prepare inputbox string
+				rule_type = Controller.rules[candidate[0]].isg_type
+				prompts << candidate[0]
+			end
+			# leave defaults empty
+			defaults = Array.new
+			input = UI.inputbox prompts, defaults, "Apply ISG Rule"
+			return false if input == false
+
+			# Now find out which rule was selected, if more rules were defined
+			# select the first one
+			selected_rule_index = Array.new
+			input.each do |indx|
+				selected_rule_index << input.index(indx) if indx != ''
+			end
+			# make sure there are no empty values in array...
+			selected_rule_index.compact!
+
+			if selected_rule_index.length > 1
+				UI.messagebox "Please select just one rule.", MB_OK
+				return false
+			elsif selected_rule_index.empty?
+				UI.messagebox "Please select rule by inserting some value (eg. 1) in appropriate text field.", MB_OK
 				return false
 			end
+
+			rule = Controller::rules[prompts[selected_rule_index[0]]]
+		else
+			rule = Controller::rules[candidates_hash.keys.first]
+		end
+		shapes = candidates_hash[rule.rule_ID]
 			
-			# now define rule to be applied.
-			# ask user only if more than one rule can be applied...
-			rule = nil
-			if candidates_hash.length > 1
-				candidates_array = candidates_hash.to_a
-				candidates_array.sort!
-
-				prompts = Array.new
-				# we know that the first item in array is rule_ID
-				candidates_hash.each do |candidate|
-					# prepare inputbox string
-					rule_type = Controller.rules[candidate[0]].isg_type
-					prompts << candidate[0]
-				end
-				# leave defaults empty
-				defaults = Array.new
-				input = UI.inputbox prompts, defaults, "Apply ISG Rule"
-				return false if input == false
-
-				# Now find out which rule was selected, if more rules were defined
-				# select the first one
-				selected_rule_index = Array.new
-				input.each do |indx|
-					selected_rule_index << input.index(indx) if indx != ''
-				end
-				# make sure there are no empty values in array...
-				selected_rule_index.compact!
-
-				if selected_rule_index.length > 1
-					UI.messagebox "Please select just one rule.", MB_OK
-					return false
-				elsif selected_rule_index.empty?
-					UI.messagebox "Please select rule by inserting some value (eg. 1) in appropriate text field.", MB_OK
-					return false
-				end
-
-				rule = Controller::rules[prompts[selected_rule_index[0]]]
-			else
-				rule = Controller::rules[candidates_hash.keys.first]
+		# now apply the rule as needed
+		resulting_shapes = Array.new
+		Sketchup.active_model.start_operation "Apply rule", false, true, false
+		case rule
+		when IterativeSG::Replace
+			prompts = Array.new
+			prompts << "Direction in X: " if rule.mirror_x
+			prompts << "Direction in Y: " if rule.mirror_y
+				
+			mir_x = 1
+			mir_y = 1
+				
+			unless prompts.empty?
+				# improve defaults declaration
+				defaults = [mir_x, mir_y]
+				input = UI.inputbox prompts, defaults, "Spec. #{rule.rule_ID} direction"
+				# since we are working with only two options, we can simplify
+				# a bit - x will always be first input, y last...
+				mir_x = input.first if rule.mirror_x
+				mir_y = input.last if rule.mirror_y
+			end			
+				
+			resulting_shapes = rule.apply_rule(false, shapes, mir_x, mir_y)
+			if resulting_shapes == false
+				# inverse directions
+				mir_x *= -1
+				mir_y *= -1
+				rule.apply_rule(true, shapes, mir_x, mir_y)
+				UI.messagebox "Rule was applied in oposite direction since specified was already taken...", MB_OK
 			end
-			shapes = candidates_hash[rule.rule_ID]
-			
-			# now apply the rule as needed
-			resulting_shapes = Array.new
-			Sketchup.active_model.start_operation "Apply rule", false, true, false
-			case rule
-			when IterativeSG::Replace
-				prompts = Array.new
-				prompts << "Direction in X: " if rule.mirror_x
-				prompts << "Direction in Y: " if rule.mirror_y
-				
-				mir_x = 1
-				mir_y = 1
-				
-				unless prompts.empty?
-					# improve defaults declaration
-					defaults = [mir_x, mir_y]
-					input = UI.inputbox prompts, defaults, "Spec. #{rule.rule_ID} direction"
-					# since we are working with only two options, we can simplify
-					# a bit - x will always be first input, y last...
-					mir_x = input.first if rule.mirror_x
-					mir_y = input.last if rule.mirror_y
-				end			
-				
-				resulting_shapes = rule.apply_rule(false, shapes, mir_x, mir_y)
-				if resulting_shapes == false
-					# inverse directions
-					mir_x *= -1
-					mir_y *= -1
-					rule.apply_rule(true, shapes, mir_x, mir_y)
-					UI.messagebox "Rule was applied in oposite direction since specified was already taken...", MB_OK
-				end
-			when IterativeSG::Merge
-				resulting_shapes = rule.apply_rule(shapes)
-			end
-
-			Sketchup.active_model.commit_operation
-			#rule.send(:apply_rule, false, original_shape_array, mirror_x, mirror_y)
-			return resulting_shapes
+		when IterativeSG::Merge
+			resulting_shapes = rule.apply_rule(shapes)
 		end
 
-		def UI_Menu::remove_rule(selection = Sketchup.active_model.selection.to_a)
-			# filter to only shapes which have stored erased entities
-			filtered = selection.select {|ent| ent.receive_erased_entites != nil }
-			
-			filtered.each do |ent|
-				rule_ID = ent.applied_by_rule
-				Controller.rules[rule_ID].remove_rule(ent)
-			end
-		end
-		########################################################################
-		# Check if Controller is properly initialized, if not, itnitialize it.
-		# 
-		# Accepts:
-		# Nothing.
-		# 
-		# Notes:
-		# 
-		# Returns:
-		# True if all is OK, false otherwise.
-		########################################################################
-		def UI_Menu::initialize_controller
-			# store current selection and deselect it
-			selection = Sketchup.active_model.selection
-			current_selection = selection.to_a			
-			selection.clear
-			
-			Controller.initialize if Controller.rules == nil
-			Controller.shapes.each do |shp|
-				unless shp.valid?
-					Controller.initialize
-					break
-				end
-			end
-			# now add back selected object
-			selection.clear
-			selection.add current_selection
+		Sketchup.active_model.commit_operation
+		#rule.send(:apply_rule, false, original_shape_array, mirror_x, mirror_y)
+		return resulting_shapes
+	end
+	########################################################################
+	# Replace specified shapes with the ones from which it was generated.
+	# Currently only works with Merge family of rules.
+	# 
+	# Accepts:
+	# entities which will be reverted.
+	# 
+	# Notes:
+	# 
+	# Returns:
+	# Nothing, it just replaces shape with ones which generated it...
+	########################################################################
+	def UI_Menu::remove_rule(entities)
+		# only consider entities which respond to receive_erase_entitie method.
+		entities.each do |ent|
+			rule_ID = ent.applied_by_rule
+			Controller.rules[rule_ID].remove_rule(ent)
 		end
 	end
+	########################################################################
+	# Check if Controller is properly initialized, if not, itnitialize it.
+	# 
+	# Accepts:
+	# Nothing.
+	# 
+	# Notes:
+	# 
+	# Returns:
+	# True if all is OK, false otherwise.
+	########################################################################
+	def UI_Menu::initialize_controller
+		# store current selection and deselect it
+		selection = Sketchup.active_model.selection
+		current_selection = selection.to_a			
+		selection.clear
+			
+		Controller.initialize if Controller.rules == nil
+		Controller.shapes.each do |shp|
+			unless shp.valid?
+				Controller.initialize
+				break
+			end
+		end
+		# now add back selected object
+		selection.clear
+		selection.add current_selection
+	end
+end
 	
-	############################################################################
-	# User interface window for Iterative Shape Grammars.
-	############################################################################
-	class UI_Window
-		# make it singleton, so it is not repeated.
-		private_class_method :new
-		@@window = nil
-		@@skui_window = nil
+############################################################################
+# User interface window for Iterative Shape Grammars.
+############################################################################
+class UI_Window
+	# make it singleton, so it is not repeated.
+	private_class_method :new
+	@@window = nil
+	@@skui_window = nil
 		
-		########################################################################
-		# Initialize ISG UI window.
-		# 
-		# Accepts:
-		# Nothing.
-		# 
-		# Notes:
-		# 
-		# Returns:
-		# UI_Window object.
-		########################################################################
-		def UI_Window::initialize
-			@@window = new unless @@window
+	########################################################################
+	# Initialize ISG UI window.
+	# 
+	# Accepts:
+	# Nothing.
+	# 
+	# Notes:
+	# 
+	# Returns:
+	# UI_Window object.
+	########################################################################
+	def UI_Window::initialize
+		@@window = new unless @@window
 			
-			show_ui
-			return @@window
-		end
-		########################################################################	
-		# PRIVATE METHODS BELOW!
-		########################################################################	
-		private
-		
-		########################################################################
-		# Set up and show ISG UI window.
-		# 
-		# Accepts:
-		# Nothing.
-		# 
-		# Notes:
-		# 
-		# Returns:
-		# UI_Window object.
-		########################################################################
-		def UI_Window::show_ui
-			options = {
-				:title           => 'Iterative Shape Grammars',
-				:width           => 300,
-				:height          => 500,
-				:resizable        => true,
-				:theme            => SKUI::Window::THEME_GRAPHITE
-			}
-			
-			@@skui_window = SKUI::Window.new(options) unless @@skui_window
-
-			b = SKUI::Button.new( 'Hello' ) { puts 'World! :)' }
-			b.position( 10, 5 )
-			@@skui_window.add_control( b )
-			
-			
-			#  now show it
-			@@skui_window.show
-			return @@window
-		end
-		# IterativeSG::UI_Window::show_ui
+		show_ui
+		return @@window
 	end
+	########################################################################	
+	# PRIVATE METHODS BELOW!
+	########################################################################	
+	private
+		
+	########################################################################
+	# Set up and show ISG UI window.
+	# 
+	# Accepts:
+	# Nothing.
+	# 
+	# Notes:
+	# 
+	# Returns:
+	# UI_Window object.
+	########################################################################
+	def UI_Window::show_ui
+		options = {
+			:title           => 'Iterative Shape Grammars',
+			:width           => 300,
+			:height          => 500,
+			:resizable        => true,
+			:theme            => SKUI::Window::THEME_GRAPHITE
+		}
+			
+		@@skui_window = SKUI::Window.new(options) unless @@skui_window
+
+		b = SKUI::Button.new( 'Hello' ) { puts 'World! :)' }
+		b.position( 10, 5 )
+		@@skui_window.add_control( b )
+			
+			
+		#  now show it
+		@@skui_window.show
+		return @@window
+	end
+	# IterativeSG::UI_Window::show_ui
+end
 end
