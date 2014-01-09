@@ -774,6 +774,8 @@ module IterativeSG
 		########################################################################
 		def apply_rule(shape, factor_x = 1, factor_y = 1)
 			# get original transformation in case we need to set it back
+			return false if shape.rules_applied.include? @rule_ID
+			shape.rules_applied << @rule_ID
 			orig_trans = shape.transformation
 			# calculate stretch from factor
 			stretch_x = calculate_from_factor(factor_x)
@@ -783,20 +785,95 @@ module IterativeSG
 			stretch_y = 1 unless @stretch_in_y
 
 			# collect all information needed
-			position = shape.position
+			# position = shape.position
+			# qick and dirti solution so shapes are only stretched in one direction
+			# to avoid double transformations
+			position = shape.bounds.min
+			
 			# stretch shape
 			Geometry::stretch_shape(shape, position, stretch_x, stretch_y)
+			
+			# recalculate stretch for dirty solutions when shapes
+			# are only stretched in one direction
+			stretch_x = 1 + ((stretch_x - 1)*2)
+			stretch_y = 1 + ((stretch_y - 1)*2)
+			
 			# check that it is valid, if not set it back and return false
-			shape.update_shape()
-			if Geometry::inside_boundary?(shape.position, shape.points) == false
-				shape.transformation = orig_trans
-				return false
+			if @constrain_connecting == true
+				connected_entities = Geometry::get_connected_entities(shape)
+				# before applying rules to connecting shapes, check that orginal
+				# is inside boundary
+				shape.update_shape
+				if Geometry::inside_boundary?(shape.position, shape.points) == false
+					shape.transformation = orig_trans
+					shape.update_shape
+					shape.rules_applied << @rule_ID
+					return false
+				end
+				if stretch_y != 1
+					# calculate stretch - temporary solution for exam example
+					
+					# define if entity is up or down
+					top_entities = Array.new
+					bottom_entities = Array.new
+					original_pos_y = shape.position.y
+					connected_entities.each do |entity|
+						y = entity.position.y
+						if y > original_pos_y
+							top_entities << entity
+						else
+							bottom_entities << entity
+						end
+					end
+					top_entities.uniq!
+					bottom_entities.uniq!
+					
+					# now update the shapes
+					top_entities.each do |top_entity|
+						# exit if top entities also have rules applied
+						if top_entity.rules_applied.include? @rule_ID
+							shape.transformation = orig_trans
+							shape.update_shape
+							shape.rules_applied << @rule_ID
+							return false
+						end
+						# calculate stretch
+						y = top_entity.transformation.yscale
+						str_y = y - (stretch_y - y) / 2
+						str_y = str_y / y
+						pos_top = top_entity.bounds.max
+						Geometry::stretch_shape(top_entity, pos_top, 1, str_y)
+						top_entity.update_shape()
+						top_entity.rules_applied << @rule_ID
+					end
+					# also erase rule if top_entities is empty as we know it's
+					# touching boundary
+					if top_entities.empty?
+						shape.transformation = orig_trans
+						shape.update_shape
+						shape.rules_applied << @rule_ID
+						return false
+					end
+					
+#					bottom_entities.each do |bottom_entity|
+#						# calculate stretch
+#						y = bottom_entity.transformation.yscale
+#						str_y = y - (stretch_y - y) / 2
+#						str_y = str_y / y
+#						pos_bottom = bottom_entity.bounds.min
+#						Geometry::stretch_shape(bottom_entity, pos_bottom, 1, str_y)
+#						bottom_entity.update_shape()
+#						bottom_entity.rules_applied << @rule_ID
+#					end
+				end
 			end
+			
+			shape.update_shape			
 			 # or add rule info to it, so it's not reapplied
-			shape.rules_applied << @rule_ID
 			# and return it
 			return shape
 		end
+		# ISGC.rules['Rule 4'].apply_rule(sel, factor_x = 1.5, factor_y = 10)
 		
 		########################################################################
 		# Pick random candidate from solution shapes.
@@ -814,6 +891,12 @@ module IterativeSG
 		def collect_candidate_shapes
 			if @shape_definitions.empty?
 				shapes = Controller.solution_shapes
+				candidates = Array.new
+				shapes.each do |shp|
+					unless shp.rules_applied.include? @rule_ID
+						candidates << shp
+					end
+				end
 				return shapes[rand(shapes.length)]
 			end
 		end
@@ -833,6 +916,10 @@ module IterativeSG
 		def calculate_from_factor(factor)
 			diff = @max_stretch - @min_stretch
 			return (factor/10.0) * diff + @min_stretch
+		end
+		
+		def check_rule(shape)
+			return true
 		end
 	end
 end

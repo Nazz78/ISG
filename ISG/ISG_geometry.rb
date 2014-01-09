@@ -200,6 +200,29 @@ module IterativeSG
 		end
 		# IterativeSG::Geometry::collect_in_direction(sel)
 		# 
+	
+		def Geometry::get_connected_entities(entity)
+			closest_entities = Geometry::sort_by_distance(entity)
+			candidates = closest_entities[0..20]
+			touching_entities = Array.new
+			# see if any candidate has touching point
+			candidates.each do |candidate|
+				candidate.update_shape
+				candidate.points.each do |c_pos|
+					entity.points.each do |e_pos|
+						if e_pos == c_pos
+							touching_entities << candidate
+							break
+						end
+					end
+					break if touching_entities.include? candidate
+				end
+			end
+			touching_entities.uniq!
+			return touching_entities
+		end
+		
+		# 
 		########################################################################
 		# Check if two groups match. That is if the face they contain are exact
 		# same shape and at exact same place.

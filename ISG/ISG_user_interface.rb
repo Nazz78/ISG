@@ -382,6 +382,7 @@ module IterativeSG
 				else
 					stretch_in_x = (input[1] == 'true' or input[1] == 'True' or input[1] == '1')
 					stretch_in_y = (input[2] == 'true' or input[2] == 'True' or input[2] == '1')
+					constrain_connecting = (input[5] == 'true' or input[5] == 'True' or input[5] == '1')
 
 					spec_hash = Hash.new
 					spec_hash['type'] = 'Stretch'
@@ -390,7 +391,7 @@ module IterativeSG
 					spec_hash['stretch_in_y'] = stretch_in_y
 					spec_hash['min_stretch'] = input[3]
 					spec_hash['max_stretch'] = input[4]
-					spec_hash['constrain_connecting'] = input[5]
+					spec_hash['constrain_connecting'] = constrain_connecting
 					spec_hash['shape_definitions'] = shape_definitions
 
 					return Controller::define_rule(spec_hash)
