@@ -218,6 +218,7 @@ module IterativeSG
 			# most of the shapes do not match, so skip all 
 			# ther if their position is not the same.
 			# TODO maybe we should improve this?
+			return false if entity_1.definition != entity_2.definition
 			return false if entity_1.position != entity_2.position
 
 			# get local transformation of shape if their ID is the same
@@ -282,6 +283,38 @@ module IterativeSG
 			# add it to the model
 			return model.entities.add_instance(comp_definition, [0,0,0])	
 		end
+
+		########################################################################
+		# Check if polygon overlaps with another polygon. Very similar to
+		# inside_boundary? method, except that this one is more general since
+		# we need to specify both polygons. Also, we consider polygons that
+		# touch (edges) not to be overlaping.
+		# 
+		# Accepts:
+		# center - shape's bounding box center
+		# points_1 - array of first polygon points.
+		# points_2 - array of second polygon points.
+		# 
+		# Notes:
+		# At the moment this method works only for convex polygons
+		# 
+		# Returns:
+		# True if polygons overlap, false otherwise.
+		# #####################################################
+		def Geometry::overlap_2D?(center, points_1, points_2)
+			# first check if bounds center is outside of the boundary
+			# we can skip rest if center is outside...
+			result = Geom.point_in_polygon_2D(center, points_2, false)
+			return true if result == true
+			
+			# check if all points lie inside specified boundary.
+			points_1.each do |pt|
+				result = Geom.point_in_polygon_2D(pt, points_2, false)
+				return true if result == true
+			end
+			return false
+		end
+		# IterativeSG::Geometry.overlap_2D?(sel_array[0].position, sel_array[0].points,sel_array[1].points)
 		
 		########################################################################
 		# Stretch shape for specified dimension from received position point.
