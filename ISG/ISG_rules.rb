@@ -61,6 +61,7 @@ module IterativeSG
 			@shape_new = specification_hash['shape_new']
 			@mirror_x = specification_hash['mirror_x']
 			@mirror_y = specification_hash['mirror_y']
+			@disable_overlaping = specification_hash['disable_overlaping']
 			@isg_type = 'Replace'
 			# also store shape definitions that are used by this rule
 			@shape_definitions = Array.new
@@ -115,8 +116,9 @@ module IterativeSG
 			shape_new_uid = ['shape_new_uid', shape_new_uid]
 			mirror_x = ['mirror_x', @mirror_x]
 			mirror_y = ['mirror_y', @mirror_y]
-			@dictionary[@rule_ID] = [type, origin_uid, shape_uid,
-				origin_new_uid, shape_new_uid, mirror_x, mirror_y]
+			disable_overlaping = ['disable_overlaping', @disable_overlaping]
+			@dictionary[@rule_ID] = [type, origin_uid, shape_uid, origin_new_uid,
+				shape_new_uid, mirror_x, mirror_y, disable_overlaping]
 			return self
 		end
 
@@ -203,7 +205,7 @@ module IterativeSG
 			# now transform the group so that it matches
 			# original shape transformation
 			new_entity = Sketchup.active_model.entities.add_group new_shapes
-
+			
 			# Once in group, move the shapes to correct location so we have
 			# correct origin when applying transformation! We calculate the
 			# distance only when rule is defined!
@@ -219,6 +221,31 @@ module IterativeSG
 			# explode groups at correct position and filter them to shapes
 			exploded_ents = new_entity.explode
 			new_shapes = exploded_ents.select {|ent| ent.is_a? Sketchup::ComponentInstance}
+			
+			# if overlaping is not allowed, check the shapes
+			if @disable_overlaping == true
+				# collect all shapes except the shapes that will be replaces.
+				solution_shapes = Controller.solution_shapes - original_shape_array
+				solution_shapes.each do |shape|
+					new_shapes.each do |new_shape|
+						if Geometry::overlap_2D?(new_shape, shape) == true
+							# fix the shape so that the rule is
+							# not applied to it anymore
+							if mark_rule == true	
+								original_shape_array.each do |original_shape|
+									original_shape.rules_applied << @rule_ID
+									original_shape.rules_applied.flatten!
+									original_shape.rules_applied.uniq!
+								end
+							end
+							Controller.temp_original_shape = original_shape_array
+							new_shapes.each { |shp| Controller::remove_shape(shp) }
+							return false
+						end
+					end
+				end
+			end
+						
 			new_shapes.each do |ent|
 				ent.update_shape
 				# also update list of @solution_shapes

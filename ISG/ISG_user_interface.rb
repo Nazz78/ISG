@@ -274,9 +274,9 @@ module IterativeSG
 		# It returns new rule object if created or false otherwise.
 		########################################################################
 		def UI_Menu::define_replace_rule
-			prompts = ["Define New Rule Name: ",
-				"Mirror in X direction: ", "Mirror in Y direction"]
-			defaults = [Controller::generate_rule_name,	false, false]
+			prompts = ["Define New Rule Name: ", "Mirror in X direction: ",
+				"Mirror in Y direction: ", "Disable overlaping: "]
+			defaults = [Controller::generate_rule_name,	false, false, true]
 			input = UI.inputbox prompts, defaults, "Declare New ISG Replace Rule"
 
 			if IterativeSG::Controller.rules.keys.include? input[0]
@@ -290,14 +290,17 @@ module IterativeSG
 				name = input[0]
 				mir_x = input[1]
 				mir_y = input[2]
+				overlap = input[3]
 				# make sure mirroring info is true boolean, not string
 				mirror_x = (mir_x == 'true' or mir_x == 'True' or mir_x == '1')
 				mirror_y = (mir_y == 'true' or mir_y == 'True' or mir_y == '1')
+				disable_overlaping = (overlap == 'true' or overlap == 'True' or overlap == '1')
 				spec_hash = Hash.new
 				spec_hash['type'] = 'Replace'
 				spec_hash['rule_ID'] = name
 				spec_hash['mirror_x'] = mirror_x
 				spec_hash['mirror_y'] = mirror_y
+				spec_hash['disable_overlaping'] = disable_overlaping
 
 				return Controller::define_rule(spec_hash)
 			end
