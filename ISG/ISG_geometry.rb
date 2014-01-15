@@ -285,36 +285,85 @@ module IterativeSG
 		end
 
 		########################################################################
-		# Check if polygon overlaps with another polygon. Very similar to
-		# inside_boundary? method, except that this one is more general since
-		# we need to specify both polygons. Also, we consider polygons that
-		# touch (edges) not to be overlaping.
+		# Check if polygon overlaps with another polygon. This method relies
+		# on SketchUp's polygon merging funcionality. Once intial check
+		# (bounding box'es, face centers) is done without result, it merges
+		# faces of both components and returns result. If there is any new face
+		# created, we have overlaping polygons.
 		# 
 		# Accepts:
-		# center - shape's bounding box center
-		# points_1 - array of first polygon points.
-		# points_2 - array of second polygon points.
+		# comp_1 - component with polygon(s) that is being checked
+		# comp_2 - component with polygon(s) that is being checked
 		# 
 		# Notes:
-		# At the moment this method works only for convex polygons
+		# At the moment we expect this method that the components checked have
+		# faces inside (not only edges).
 		# 
 		# Returns:
 		# True if polygons overlap, false otherwise.
-		# #####################################################
-		def Geometry::overlap_2D?(center, points_1, points_2)
-			# first check if bounds center is outside of the boundary
-			# we can skip rest if center is outside...
-			result = Geom.point_in_polygon_2D(center, points_2, false)
+		# ######################################################################
+		def Geometry::overlap_2D?(comp_1, comp_2)
+			# most polygons do not intersect, so check
+			# their bound intersection first
+			result = Geometry::bounds_intersect_2d?(comp_1, comp_2)
+			return false if result == false
+			
+			# now check if comp center is inside the other comp
+			# if so, we can skip rest if center is inside...
+			result = Geom.point_in_polygon_2D(comp_1.position, comp_2.points, false)
+			return true if result == true
+			result = Geom.point_in_polygon_2D(comp_2.position, comp_1.points, false)
 			return true if result == true
 			
-			# check if all points lie inside specified boundary.
-			points_1.each do |pt|
-				result = Geom.point_in_polygon_2D(pt, points_2, false)
-				return true if result == true
-			end
-			return false
+			# ultimate test is to merge all faces and see if any new one appears
+			faces_1 = comp_1.definition.entities.to_a.select { |e| e.is_a? Sketchup::Face }
+			faces_2 = comp_2.definition.entities.to_a.select { |e| e.is_a? Sketchup::Face }
+			all_faces = faces_1.length + faces_2.length
+			# add group which will be filled with new faces
+			new_group = Sketchup.active_model.entities.add_group comp_1.copy, comp_2.copy
+			new_group.entities.to_a.each {|ent| ent.explode}
+			new_faces = new_group.entities.to_a.select  { |e| e.is_a? Sketchup::Face }
+			# new faces count should be the same as the sum from original
+			# components. If there are more faces, we have overlapping polygons
+			# (SketchUp merges components automatically).
+			result = (all_faces != new_faces.length)
+			Sketchup.active_model.entities.erase_entities new_group
+			return result
 		end
-		# IterativeSG::Geometry.overlap_2D?(sel_array[0].position, sel_array[0].points,sel_array[1].points)
+		# IterativeSG::Geometry.overlap_2D?(sel_array[0], sel_array[1])
+		
+		########################################################################
+		# Check whether bounding box of polygon 1 intersects with the bounding
+		# box of the second polygon
+		# 
+		# Accepts:
+		# entity - entity which is being stretched
+		# position - origin position of stretch
+		# xscale - how much should the shape be stretched in x direction
+		# yscale - how much should the shape be stretched in y direction
+		# 
+		# Notes:
+		# Although storing min_ and max bounds values and calling them directly
+		# makes method % faster, we do not use it since some objects might not
+		# have ISG methods applied to them.
+		# 
+		# Returns:
+		# True once stretch is done
+		########################################################################
+		def Geometry::bounds_intersect_2d?(comp_1, comp_2)
+			min_1 = comp_1.bounds.min
+			max_1 = comp_1.bounds.max
+			min_2 = comp_2.bounds.min
+			max_2 = comp_2.bounds.max
+			
+			return false if max_1.x < min_2.x
+			return false if min_1.x > max_2.x
+			return false if max_1.y < min_2.y
+			return false if min_1.y > max_2.y
+
+			return true
+		end
+		# IterativeSG::Geometry::bounds_intersect_2d?(sel_array[0], sel_array[1])
 		
 		########################################################################
 		# Stretch shape for specified dimension from received position point.
