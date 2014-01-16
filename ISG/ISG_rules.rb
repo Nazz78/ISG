@@ -222,10 +222,18 @@ module IterativeSG
 			exploded_ents = new_entity.explode
 			new_shapes = exploded_ents.select {|ent| ent.is_a? Sketchup::ComponentInstance}
 			
+			# update each shape so we have correct coordinates
+			new_shapes.each do |ent|
+				ent.update_shape
+				# also update list of @solution_shapes
+				Controller::solution_shapes << ent
+			end
+			
 			# if overlaping is not allowed, check the shapes
 			if @disable_overlaping == true
-				# collect all shapes except the shapes that will be replaces.
+				# collect all shapes except the shapes that will be replaced.
 				solution_shapes = Controller.solution_shapes - original_shape_array
+				solution_shapes = solution_shapes - new_shapes
 				solution_shapes.each do |shape|
 					new_shapes.each do |new_shape|
 						if Geometry::overlap_2D?(new_shape, shape) == true
@@ -244,12 +252,6 @@ module IterativeSG
 						end
 					end
 				end
-			end
-						
-			new_shapes.each do |ent|
-				ent.update_shape
-				# also update list of @solution_shapes
-				Controller::solution_shapes << ent
 			end
 
 			# now make sure rule application is inside
